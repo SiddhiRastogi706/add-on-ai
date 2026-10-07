@@ -3,6 +3,12 @@
   publish = "dist/client"
 
 [[redirects]]
+  from = "/api/*"
+  to = "https://addon-ai-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/robots.txt"
   to = "/robots.txt"
   status = 200
