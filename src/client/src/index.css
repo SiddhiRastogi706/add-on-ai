@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F8FAFC;
+    color: #1E293B;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(224, 242, 254, 0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(244, 244, 254, 0.6) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(219, 251, 236, 0.3) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  }
+
+  .glass-card-hover {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.06), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+    border-color: rgba(173, 196, 251, 0.5);
+  }
+
+  .soft-gradient-brand {
+    background: linear-gradient(135deg, #537CF3 0%, #7FA1F8 50%, #9B9EE0 100%);
+  }
+
+  .soft-gradient-mint {
+    background: linear-gradient(135deg, #1CB77B 0%, #42D499 50%, #7FEABC 100%);
+  }
+
+  .soft-gradient-peach {
+    background: linear-gradient(135deg, #FA8243 0%, #FFA470 50%, #FFC7A3 100%);
+  }
+
+  .soft-gradient-blush {
+    background: linear-gradient(135deg, #DC5495 0%, #EB7CB4 50%, #F4ACD1 100%);
+  }
+
+  .soft-gradient-sky {
+    background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 50%, #7DD3FC 100%);
+  }
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}

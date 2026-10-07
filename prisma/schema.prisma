@@ -1,0 +1,447 @@
+// Prisma Schema for MarketMind AI
+// Supports SQLite (default local) and PostgreSQL (production)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id              String         @id @default(cuid())
+  name            String
+  plan            String         @default("growth")
+  aiTokensUsed    Int            @default(0)
+  aiTokensLimit   Int            @default(600000)
+  users           User[]
+  businesses      Business[]
+  subscriptions   Subscription[]
+  payments        Payment[]
+  auditLogs       AdminAuditLog[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  passwordHash    String
+  name            String
+  role            String        @default("ADMIN") // ADMIN, USER, MEMBER
+  phoneNumber     String?
+  resetOtp        String?
+  resetOtpExpires DateTime?
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notifications   Notification[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Business {
+  id                   String             @id @default(cuid())
+  organizationId       String
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                 String
+  websiteUrl           String
+  industry             String
+  description          String
+  productsAndServices  String             // JSON string
+  targetAudience       String
+  targetLocations      String             // JSON string
+  marketingGoals       String             // JSON string
+  monthlyBudget        Float              @default(50000)
+  dailyBudgetLimit     Float              @default(2000)
+  brandColors          String             // JSON { primary, secondary, accent }
+  brandTone            String             @default("Professional & Authoritative")
+  language             String             @default("English")
+  currency             String             @default("USD")
+  emergencyStop        Boolean            @default(false)
+  isCrawlerComplete    Boolean            @default(false)
+
+  // Relations
+  profileAI            BusinessProfileAI?
+  websites             Website[]
+  seoAudits            SeoAudit[]
+  keywords             Keyword[]
+  contents             ContentItem[]
+  socialAccounts       SocialAccount[]
+  socialPosts          SocialPost[]
+  adAccounts           AdAccount[]
+  adCampaigns          AdCampaign[]
+  leads                Lead[]
+  recommendations      AIRecommendation[]
+  approvals            Approval[]
+  activityLogs         ActivityLog[]
+  aiMemories           AIMemory[]
+  automationRules      AutomationRule[]
+  reports              ExecutiveReport[]
+  integrations         Integration[]
+  competitors          Competitor[]
+  geoVisibilityChecks  GeoVisibilityCheck[]
+
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model Website {
+  id              String      @id @default(cuid())
+  businessId      String
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  domain          String
+  lastCrawledAt   DateTime?
+  crawledDataJson String?     // Serialized CrawlerResult
+  pageCount       Int         @default(1)
+  healthScore     Int         @default(88)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model BusinessProfileAI {
+  id                    String    @id @default(cuid())
+  businessId            String    @unique
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  summary               String
+  uspsJson              String    // JSON array
+  customerPainsJson     String    // JSON array
+  offeringsJson         String    // JSON array
+  detectedVoiceJson     String    // JSON object
+  idealPersonasJson     String    // JSON array
+  positioningStatement  String
+  growthTacticsJson     String    // JSON array
+  analyzedAt            DateTime  @default(now())
+}
+
+model SeoAudit {
+  id              String     @id @default(cuid())
+  businessId      String
+  business        Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  overallScore    Int        @default(85)
+  technicalScore  Int        @default(90)
+  onPageScore     Int        @default(82)
+  contentScore    Int        @default(78)
+  localScore      Int        @default(91)
+  crawledPages    Int        @default(12)
+  issues          SeoIssue[]
+  auditedAt       DateTime   @default(now())
+}
+
+model SeoIssue {
+  id                    String    @id @default(cuid())
+  seoAuditId            String
+  seoAudit              SeoAudit  @relation(fields: [seoAuditId], references: [id], onDelete: Cascade)
+  category              String    // Technical, On-Page, Content, Local
+  severity              String    // Critical, Warning, Info
+  title                 String
+  description           String
+  whyItMatters          String
+  recommendedFix        String
+  canAiFixAutomatically Boolean   @default(false)
+  status                String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, IGNORED
+  affectedUrlsJson      String    // JSON array
+  createdAt             DateTime  @default(now())
+}
+
+model Keyword {
+  id                      String    @id @default(cuid())
+  businessId              String
+  business                Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  keyword                 String
+  intent                  String    // Informational, Commercial, Transactional, Navigational, Local
+  category                String
+  searchVolumeEstimated   String
+  difficultyScore         Int       @default(35)
+  priority                String    @default("Medium")
+  suggestedContentFormat  String
+  isLiveApiData           Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+}
+
+model ContentItem {
+  id                      String    @id @default(cuid())
+  businessId              String
+  business                Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title                   String
+  contentType             String    // BLOG_POST, LANDING_PAGE, PRODUCT_DESCRIPTION, FAQ, META_TAGS
+  slug                    String?
+  h1                      String?
+  metaTitle               String?
+  metaDescription         String?
+  content                 String
+  status                  String    @default("DRAFT") // DRAFT, READY_FOR_REVIEW, APPROVED, PUBLISHED
+  targetKeywordsJson      String    // JSON array
+  faqsJson                String?   // JSON array
+  ctaText                 String?
+  internalLinksJson       String?   // JSON array
+  aiConfidenceScore       Int       @default(94)
+  isFactValidated         Boolean   @default(true)
+  wordCount               Int       @default(0)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model SocialAccount {
+  id              String       @id @default(cuid())
+  businessId      String
+  business        Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  platform        String       // instagram, facebook, linkedin, x, youtube
+  accountHandle   String
+  displayName     String
+  isConnected     Boolean      @default(false)
+  isSandboxMode   Boolean      @default(true)
+  posts           SocialPost[]
+  createdAt       DateTime     @default(now())
+}
+
+model SocialPost {
+  id                String         @id @default(cuid())
+  businessId        String
+  business          Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  socialAccountId   String?
+  socialAccount     SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  platform          String
+  contentType       String         @default("post") // post, reel_script, carousel, story, poll
+  topic             String
+  caption           String
+  creativeConcept   String
+  hashtagsJson      String         // JSON array
+  cta               String
+  scheduledTime     DateTime
+  status            String         @default("SCHEDULED") // SCHEDULED, PUBLISHED, APPROVAL_REQUIRED, DRAFT
+  publishedUrl      String?
+  platformPostId    String?
+  engagementJson    String?        // JSON { likes, shares, comments, clicks }
+  isSandboxMode     Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+}
+
+model AdAccount {
+  id              String       @id @default(cuid())
+  businessId      String
+  business        Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  platform        String       // google_ads, meta_ads
+  accountId       String
+  accountName     String
+  isConnected     Boolean      @default(false)
+  isSandboxMode   Boolean      @default(true)
+  campaigns       AdCampaign[]
+  createdAt       DateTime     @default(now())
+}
+
+model AdCampaign {
+  id                  String     @id @default(cuid())
+  businessId          String
+  business            Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  adAccountId         String?
+  adAccount           AdAccount? @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+  platform            String     // google_ads, meta_ads
+  campaignName        String
+  objective           String     // LEADS, CONVERSIONS, TRAFFIC, BRAND_AWARENESS
+  dailyBudget         Float      @default(50)
+  status              String     @default("ACTIVE") // ACTIVE, PAUSED, DRAFT, APPROVAL_REQUIRED
+  headlinesJson       String     // JSON array
+  descriptionsJson    String     // JSON array
+  targetAudience      String
+  negativeKeywords    String?    // JSON array
+  creativeConcept     String?
+  callToAction        String     @default("Learn More")
+  metricsJson         String     // JSON metrics
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+model Lead {
+  id                  String    @id @default(cuid())
+  businessId          String
+  business            Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name                String
+  email               String
+  phone               String?
+  company             String?
+  source              String    // Google Organic, Google Ads, Meta Ads, LinkedIn, Direct
+  campaignName        String?
+  status              String    @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+  leadScore           Int       @default(70)
+  aiPriority          String    @default("WARM") // HOT, WARM, COLD
+  aiSuggestedAction   String
+  notesJson           String    // JSON array
+  valueEstimated      Float?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model AIRecommendation {
+  id                      String    @id @default(cuid())
+  businessId              String
+  business                Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category                String    // SEO, Content, Social, Ads, Budget, Conversion
+  title                   String
+  description             String
+  whyAiRecommends         String
+  expectedObjective       String
+  priority                String    @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  dataBasis               String
+  confidencePercent       Int       @default(90)
+  suggestedActionPayload  String    // JSON
+  status                  String    @default("PENDING") // PENDING, APPROVED, REJECTED, SCHEDULED, EXECUTED
+  createdAt               DateTime  @default(now())
+}
+
+model Approval {
+  id                      String    @id @default(cuid())
+  businessId              String
+  business                Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title                   String
+  category                String    // BUDGET_CHANGE, LIVE_AD_LAUNCH, WEBSITE_CODE_CHANGE, SENSITIVE_CONTENT
+  riskLevel               String    @default("MEDIUM") // HIGH, MEDIUM
+  description             String
+  proposedChangesSummary  String
+  detailsPayload          String    // JSON
+  requestedByAgent        String    // AgentType
+  status                  String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt               DateTime  @default(now())
+  resolvedAt              DateTime?
+}
+
+model ActivityLog {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  agentType       String
+  timestamp       DateTime  @default(now())
+  actionSummary   String
+  details         String
+  status          String    @default("SUCCESS")
+  traceId         String
+}
+
+model AIMemory {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  memoryType      String    // BRAND_PREFERENCE, REJECTED_TOPIC, APPROVED_STYLE, WINNING_HOOK, CAMPAIGN_LESSON
+  key             String
+  value           String
+  confidence      Float     @default(1.0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AutomationRule {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  module          String    // SEO, SOCIAL, ADS, CONTENT, ANALYTICS, REPORTS
+  mode            String    @default("AUTO_WITH_LIMITS") // AUTO, AUTO_WITH_LIMITS, REQUIRES_APPROVAL
+  isEnabled       Boolean   @default(true)
+  settingsJson    String    // JSON config
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Notification {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  message         String
+  type            String    // INFO, SUCCESS, WARNING, APPROVAL_REQUEST, BUDGET_ALERT
+  isRead          Boolean   @default(false)
+  actionLink      String?
+  createdAt       DateTime  @default(now())
+}
+
+model ExecutiveReport {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type            String    // DAILY_DIGEST, WEEKLY_REVIEW, MONTHLY_STRATEGY
+  periodLabel     String
+  sectionsJson    String    // JSON { whatHappened, whyItHappened, whatAiDid, whatWorked, whatDidNotWork, nextSteps }
+  metricsJson     String    // JSON metrics
+  createdAt       DateTime  @default(now())
+}
+
+model Integration {
+  id                    String    @id @default(cuid())
+  businessId            String
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  provider              String    // google_search_console, google_analytics, google_ads, meta_ads, etc.
+  name                  String
+  isConnected           Boolean   @default(false)
+  isSandboxDemo         Boolean   @default(true)
+  credentialsEncrypted  String?
+  accountName           String?
+  healthStatus          String    @default("HEALTHY")
+  lastSyncAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Subscription {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId          String        // free, starter, growth, pro
+  status          String        @default("ACTIVE") // ACTIVE, PAST_DUE, CANCELLED
+  currentPeriodEnd DateTime
+  createdAt       DateTime      @default(now())
+}
+
+model Payment {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId            String
+  billingCycle      String       // "monthly" | "yearly"
+  amountPaise       Int
+  currency          String
+  razorpayOrderId   String       @unique
+  razorpayPaymentId String?
+  status            String       // "CREATED" | "PAID" | "FAILED"
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model AdminAuditLog {
+  id              String        @id @default(cuid())
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  action          String
+  actorEmail      String
+  ipAddress       String?
+  details         String
+  createdAt       DateTime      @default(now())
+}
+
+model Competitor {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String
+  domain          String?
+  strengthsJson   String?   // JSON array
+  weaknessesJson  String?   // JSON array
+  trafficEstimate String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model GeoVisibilityCheck {
+  id                  String    @id @default(cuid())
+  businessId          String
+  business            Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  query               String
+  engine              String    // OpenAI, Perplexity
+  brandMentioned      Boolean   @default(false)
+  mentionPosition     Int?
+  domainInCitations   Boolean   @default(false)
+  competitorsJson     String?   // JSON array of competitor names found
+  citationsJson       String?   // JSON array of URLs
+  rawResponse         String?
+  checkedAt           DateTime  @default(now())
+}
+

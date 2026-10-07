@@ -1,0 +1,19 @@
+# Robots.txt for Truck Mitra (https://truckmitra.in)
+# India's #1 Digital Freight & Commercial Truck Booking Platform
+User-agent: *
+Allow: /
+Allow: /p/*
+Allow: /assets/*
+
+# Disallow private user/admin and sensitive API endpoints
+Disallow: /login
+Disallow: /register
+Disallow: /auth
+Disallow: /admin
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /api/
+
+# Canonical XML Sitemap
+Sitemap: https://truckmitra.in/sitemap.xml

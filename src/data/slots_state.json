@@ -1,0 +1,85 @@
+{
+  "totalSlots": 100,
+  "claimedSlots": 97,
+  "price": 499,
+  "originalPrice": 14999,
+  "currency": "₹",
+  "slotNumber": 1,
+  "recentClaims": [
+    {
+      "name": "DILIPKUMAR200893@GMAIL.COM",
+      "city": "sky express road pvt ltd",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "Aakash Verma",
+      "city": "Truck Mitra Fleet Logistics",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "New Founder",
+      "city": "India",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "Ananya Roy",
+      "city": "Kolkata",
+      "claimedAt": "Just now"
+    },
+    {
+      "name": "Kavita Sharma",
+      "city": "Bengaluru",
+      "claimedAt": "3 mins ago"
+    },
+    {
+      "name": "Rohan Mehra",
+      "city": "Mumbai",
+      "claimedAt": "7 mins ago"
+    },
+    {
+      "name": "Aditya Verma",
+      "city": "Delhi NCR",
+      "claimedAt": "12 mins ago"
+    },
+    {
+      "name": "Sneha Patel",
+      "city": "Ahmedabad",
+      "claimedAt": "19 mins ago"
+    },
+    {
+      "name": "Vikram Joshi",
+      "city": "Pune",
+      "claimedAt": "24 mins ago"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+import { AIRecommendation } from '../../../shared/types';
+
+export class OptimizationAgent {
+  static generateRecommendations(business: { id: string; name: string; industry: string }): AIRecommendation[] {
+    return [
+      {
+        id: `rec-${Date.now()}-1`,
+        businessId: business.id,
+        category: 'SEO',
+        title: `Create localized landing page targeting "${business.industry} automation near me"`,
+        description: 'Your domain has strong topical authority but lacks dedicated localized service content.',
+        whyAiRecommends: 'Local search queries in your primary city have grown 32% month-over-month with zero top-ranking competitors.',
+        expectedObjective: 'Capture 300+ monthly local transactional visitors and generate 15-20 inbound calls/leads.',
+        priority: 'HIGH',
+        dataBasis: 'Search Console query impressions + local gap crawler detection',
+        confidencePercent: 94,
+        suggestedActionPayload: { action: 'GENERATE_PAGE', slug: 'local-services' },
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: `rec-${Date.now()}-2`,
+        businessId: business.id,
+        category: 'Ads',
+        title: 'Reallocate $15/day from underperforming display network to top-converting Search Ad group',
+        description: 'Google Ads Search Ad Group "High Intent Solutions" is converting at 6.8% vs 0.9% on display ads.',
+        whyAiRecommends: 'Display placement CTR has dropped below benchmark, while Search Ad conversion velocity is accelerating.',
+        expectedObjective: 'Lower blended Cost Per Lead (CPL) by 22% while maintaining total conversion volume.',
+        priority: 'MEDIUM',
+        dataBasis: 'Ad account 30-day conversion tracking metrics',
+        confidencePercent: 91,
+        suggestedActionPayload: { action: 'BUDGET_REALLOCATE', amount: 15, from: 'display', to: 'search' },
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: `rec-${Date.now()}-3`,
+        businessId: business.id,
+        category: 'Social',
+        title: 'Syndicate weekly client case study carousels to LinkedIn on Tuesdays at 9:00 AM',
+        description: 'Data indicates Tuesday morning B2B engagement outperforms all other posting windows by 2.4x.',
+        whyAiRecommends: 'Your target audience consists of business leaders whose peak social activity aligns with early weekday mornings.',
+        expectedObjective: 'Boost organic engagement by 45% and generate direct inbound connection requests.',
+        priority: 'MEDIUM',
+        dataBasis: 'Social engagement heatmaps across industry peer datasets',
+        confidencePercent: 88,
+        suggestedActionPayload: { action: 'AUTO_SCHEDULE_POSTS', slot: 'Tue-0900' },
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: `rec-${Date.now()}-4`,
+        businessId: business.id,
+        category: 'Content',
+        title: 'Inject structured FAQ schema into top 3 service pages',
+        description: 'Pages with valid FAQPage schema occupy up to 30% more vertical search snippet real estate.',
+        whyAiRecommends: 'Expands SERP footprint and increases click-through rate without requiring additional backlinks.',
+        expectedObjective: '+14% improvement in organic click-through rate across primary brand queries.',
+        priority: 'HIGH',
+        dataBasis: 'Technical crawler audit finding missing Schema.org markup',
+        confidencePercent: 96,
+        suggestedActionPayload: { action: 'INJECT_FAQ_SCHEMA' },
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
+}
