@@ -43,6 +43,8 @@ import { ChannelAuthModal, AdPlatform } from '../components/ads/ChannelAuthModal
 
 export const AdsManagerView: React.FC = () => {
   const { business } = useAuth();
+  const businessName = business?.name || 'Your Business';
+  const businessWebsite = business?.websiteUrl || 'https://yourwebsite.com';
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [budgetStatus, setBudgetStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -74,15 +76,15 @@ export const AdsManagerView: React.FC = () => {
   });
 
   // AI Commercial Ad Generator & Auto-Publishing State
-  const [adPromptInput, setAdPromptInput] = useState('Truck Mitra instant freight booking and verified transport truck service across India');
+  const [adPromptInput, setAdPromptInput] = useState(`${businessName} premium offer with strong conversion copy and clear CTA for local customers`);
   const [adFormat, setAdFormat] = useState<'image' | 'video'>('image');
   const [isGeneratingAd, setIsGeneratingAd] = useState(false);
   const [adAspectRatio, setAdAspectRatio] = useState<'1:1' | '9:16' | '16:9'>('1:1');
-  const [adBadge, setAdBadge] = useState('🚚 INSTANT FREIGHT BOOKING');
-  const [adHeadline, setAdHeadline] = useState('Book Verified Trucks Fast With Truck Mitra');
-  const [adSubheadline, setAdSubheadline] = useState('Connect directly with 100% verified truck drivers across India with guaranteed rates & live GPS tracking.');
-  const [adCta, setAdCta] = useState('Book Truck Now');
-  const [adUrl, setAdUrl] = useState(business?.websiteUrl || 'https://truckmitra.in');
+  const [adBadge, setAdBadge] = useState('🚀 LIMITED TIME OFFER');
+  const [adHeadline, setAdHeadline] = useState(`${businessName} helps customers choose faster, smarter, and with more confidence.`);
+  const [adSubheadline, setAdSubheadline] = useState(`Discover how ${businessName} delivers exceptional value, trusted service, and measurable outcomes for customers.`);
+  const [adCta, setAdCta] = useState('Get Started');
+  const [adUrl, setAdUrl] = useState(businessWebsite);
   const [adImageUrl, setAdImageUrl] = useState(
     'https://image.pollinations.ai/prompt/A%20genuine%20real-life%20photograph%20of%20a%20modern%20commercial%20freight%20truck%20on%20Indian%20highway%20golden%20hour%2C%20shot%20on%20Sony%20A7%20IV%2050mm%20lens%2C%20raw%20photo%20style%2C%20zero%20CGI%2C%20zero%20plastic%20skin?width=1080&height=1080&model=flux&enhance=true&nologo=true&seed=849201'
   );
@@ -1631,6 +1633,7 @@ export const AdsManagerView: React.FC = () => {
         onClose={() => setIsAuthModalOpen(false)}
         initialPlatform={authTargetPlatform}
         onAuthenticated={handleChannelAuthenticated}
+        businessName={businessName}
       />
 
       {/* Post-Creation Success Modal with Facebook Self-Pay direct links */}

@@ -54,8 +54,7 @@ export class EmailService {
       return { sent: false, reason: 'not_configured' };
     }
 
-    const isSyntheticEmail = options.to.endsWith('@addon.ai');
-    const targetEmail = isSyntheticEmail ? 'skyexpressroad@gmail.com' : options.to;
+    const targetEmail = options.to;
 
     try {
       const response = await axios.post(
@@ -85,46 +84,6 @@ export class EmailService {
       const status = err.response?.status;
       const errorMsg = err.response?.data?.message || err.message || 'Resend API call failed';
       console.error(`[EmailService Error] Failed to send email to ${targetEmail}: status ${status || 'unknown'}, message: ${errorMsg}`);
-
-      // Resend Free/Testing Sandbox restriction fallback:
-      // If Resend only allows sending to the registered account email (skyexpressroad@gmail.com),
-      // forward to that address so the user receives all test alerts in their real inbox!
-      if (
-        status === 403 &&
-        typeof errorMsg === 'string' &&
-        errorMsg.includes('You can only send testing emails to your own email address') &&
-        targetEmail !== 'skyexpressroad@gmail.com'
-      ) {
-        console.warn(`[EmailService] Resend unverified domain sandbox mode: forwarding test notification to registered account (skyexpressroad@gmail.com)...`);
-        try {
-          const fallbackRes = await axios.post(
-            'https://api.resend.com/emails',
-            {
-              from: config.fromEmail,
-              to: ['skyexpressroad@gmail.com'],
-              subject: options.subject,
-              html: `<div style="padding:10px 14px;background:#fef3c7;border-left:4px solid #f59e0b;font-family:sans-serif;font-size:12px;color:#92400e;margin-bottom:16px;">
-                <strong>Sandbox Testing Notice:</strong> Resend unverified domain mode me yeh email <code>${targetEmail}</code> ke liye bheja gaya tha, jo aapke verified account par deliver kiya gaya hai.
-              </div>` + options.html,
-              ...(options.text ? { text: options.text } : {}),
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${config.apiKey}`,
-                'Content-Type': 'application/json',
-              },
-              timeout: 12000,
-            }
-          );
-          console.log(`[EmailService] Fallback email delivered to skyexpressroad@gmail.com, id: ${fallbackRes.data?.id}`);
-          return {
-            sent: true,
-            id: fallbackRes.data?.id,
-          };
-        } catch (fallbackErr: any) {
-          console.error(`[EmailService] Fallback dispatch failed:`, fallbackErr.message);
-        }
-      }
 
       return {
         sent: false,
@@ -342,7 +301,7 @@ export class EmailService {
     welcome(params: { name: string; email: string; appName?: string; loginUrl?: string }): { subject: string; html: string; text: string } {
       const appName = params.appName || BRAND.appName;
       const loginUrl = params.loginUrl || `${process.env.APP_URL || 'http://localhost:3000'}/login`;
-      const subject = `Welcome to ${appName} — Your Autonomous 24/7 AI Marketing Team!`;
+      const subject = `${appName} mein aapka swagat hai!`;
 
       const html = `
 <!DOCTYPE html>
@@ -364,9 +323,9 @@ export class EmailService {
 
     <!-- Body Content -->
     <div style="padding: 36px 32px;">
-      <p style="font-size: 18px; font-weight: 700; margin-top: 0; color: #0f172a;">Welcome aboard, ${params.name || 'Founder'}! 👋</p>
+      <p style="font-size: 18px; font-weight: 700; margin-top: 0; color: #0f172a;">${appName} mein aapka swagat hai, ${params.name || 'Founder'}! 👋</p>
       <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-        Your workspace has been successfully initialized. Our fleet of <strong>10 specialized autonomous AI agents</strong> is now ready to audit your website, track competitor search gaps, generate high-converting campaigns, and scale your inbound revenue 24/7.
+        Aapka workspace taiyar hai. Hamare <strong>10 specialized AI agents</strong> aapki website audit karne, competitors ko track karne aur marketing campaigns banane ke liye ready hain.
       </p>
 
       <!-- Account Details Box -->
@@ -423,7 +382,7 @@ export class EmailService {
 </html>
       `;
 
-      const text = `Welcome to ${appName}!\n\nHello ${params.name},\n\nYour workspace has been created. Log in at ${loginUrl} to access your 24/7 AI marketing team.\n\nAccount: ${params.email}\nPlan: Founder Growth Tier\n\nSupport: ${BRAND.contactEmail}`;
+      const text = `${appName} mein aapka swagat hai, ${params.name || 'Founder'}!\n\nAapka workspace taiyar hai. Aapki AI marketing team ab aapki growth mein madad ke liye ready hai.\n\nApne workspace mein login karein: ${loginUrl}\n\nAccount: ${params.email}\nPlan: Founder Growth Tier\n\nSupport: ${BRAND.contactEmail}`;
 
       return { subject, html, text };
     },

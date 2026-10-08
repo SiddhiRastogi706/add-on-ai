@@ -56,26 +56,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Analyzed Website Data from Landing Page (or default)
+  // Keep analysis metrics from the landing-page scan, but always use the
+  // authenticated organization's active business identity for its name and URL.
   const [analyzedWebsite, setAnalyzedWebsite] = useState<any>(() => {
+    let storedAnalysis: any = {};
     try {
       const stored = localStorage.getItem('addon_analyzed_website');
-      if (stored) return JSON.parse(stored);
+      if (stored) storedAnalysis = JSON.parse(stored);
     } catch {}
     return {
-      domain: business?.websiteUrl?.replace(/^https?:\/\//, '') || 'truckmitra.com',
-      url: business?.websiteUrl || 'https://truckmitra.com',
-      brandName: business?.name || 'Truck Mitra',
-      niche: business?.industry || 'Logistics & Commercial Fleet Transport',
-      summary: 'Verified multi-page transport booking portal with discovered route pages, responsive fleet booking forms, and live Google Ads keyword index.',
-      pages: 10,
-      seoScore: 78,
-      aiScore: '74% (Actionable)',
-      speedScore: '2.6s LCP',
-      deficienciesCount: 3,
-      fixed: false,
+      ...storedAnalysis,
+      id: business?.id || storedAnalysis.id,
+      domain: business?.websiteUrl?.replace(/^https?:\/\//i, '').replace(/\/+$/, '') || storedAnalysis.domain || '',
+      url: business?.websiteUrl || storedAnalysis.url || '',
+      brandName: business?.name || storedAnalysis.brandName || 'Your Business',
+      niche: business?.industry || storedAnalysis.niche || 'Professional Services',
+      summary: storedAnalysis.summary || 'Your business analysis and recommendations will appear here.',
+      pages: storedAnalysis.pages || 0,
+      seoScore: storedAnalysis.seoScore || 0,
+      aiScore: storedAnalysis.aiScore || 'Pending',
+      speedScore: storedAnalysis.speedScore || 'Pending',
+      deficienciesCount: storedAnalysis.deficienciesCount || 0,
+      fixed: storedAnalysis.fixed || false,
     };
   });
+
+  useEffect(() => {
+    if (!business) return;
+
+    setAnalyzedWebsite((current: any) => {
+      const updated = {
+        ...current,
+        id: business.id,
+        domain: business.websiteUrl?.replace(/^https?:\/\//i, '').replace(/\/+$/, '') || '',
+        url: business.websiteUrl || '',
+        brandName: business.name || 'Your Business',
+        niche: business.industry || 'Professional Services',
+      };
+      try {
+        localStorage.setItem('addon_analyzed_website', JSON.stringify(updated));
+      } catch (error) {
+        console.warn('Could not persist active business identity for dashboard:', error);
+      }
+      return updated;
+    });
+  }, [business?.id, business?.name, business?.websiteUrl, business?.industry]);
 
   // Okara UI States
   const [showTerminalLog, setShowTerminalLog] = useState(true);
@@ -130,11 +155,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const handlePostAttention = async () => {
     setAttentionFeedback('Publishing to X (Twitter)...');
     try {
-      // Post to social API
-      await ApiClient.publishSocialPost({
-        content: getAttentionPostContent(),
-        platforms: ['TWITTER'],
-        scheduledFor: new Date().toISOString(),
+      const content = getAttentionPostContent();
+      await ApiClient.publishDirectSocial({
+        businessId: analyzedWebsite?.id,
+        channels: ['twitter'],
+        caption: content,
+        headline: analyzedWebsite.brandName || 'Growth update',
       });
       setAttentionFeedback('✅ Posted to X (Twitter) successfully!');
       setTimeout(() => {

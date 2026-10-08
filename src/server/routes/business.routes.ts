@@ -11,6 +11,7 @@ router.get('/active', authMiddleware, async (req: AuthRequest, res: Response) =>
   try {
     let business = await prisma.business.findFirst({
       where: { organizationId: req.user?.organizationId },
+      orderBy: { createdAt: 'asc' },
       include: { profileAI: true, websites: true },
     });
 
@@ -19,14 +20,14 @@ router.get('/active', authMiddleware, async (req: AuthRequest, res: Response) =>
       business = await prisma.business.create({
         data: {
           organizationId: req.user.organizationId,
-          name: org?.name || 'Truck Mitra',
-          industry: 'Logistics & Fleet Transport',
-          websiteUrl: 'https://truckmitra.com',
-          description: 'Online truck transport booking, freight rates, and fleet logistics across India.',
-          productsAndServices: JSON.stringify(['Full Truckload Transport', 'Intercity Freight Booking', 'Verified Fleet Network']),
-          targetAudience: 'Shippers, Fleet Owners, Transport Managers & SME Manufacturers',
-          targetLocations: JSON.stringify(['India', 'Delhi NCR', 'Mumbai', 'Bangalore']),
-          marketingGoals: JSON.stringify(['Increase Freight Booking Leads', 'Acquire Verified Fleet Partners']),
+          name: org?.name || 'Your Business',
+          industry: 'Professional Services',
+          websiteUrl: 'https://yourwebsite.com',
+          description: 'Digital growth business profile for our company.',
+          productsAndServices: JSON.stringify(['Core Offer', 'Lead Generation', 'Customer Support']),
+          targetAudience: 'Prospective customers and decision-makers in our market',
+          targetLocations: JSON.stringify(['Local Market', 'Regional Market', 'Online']),
+          marketingGoals: JSON.stringify(['Generate Leads', 'Increase Traffic', 'Improve Brand Awareness']),
           brandColors: JSON.stringify({ primary: '#2563EB', secondary: '#10B981', accent: '#F59E0B' }),
           brandTone: 'Professional, Trustworthy & Efficient',
           dailyBudgetLimit: 5000,
@@ -74,35 +75,63 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res: Response) =
       language,
     } = req.body;
 
+    const businessName = typeof name === 'string' ? name.trim() : '';
+    const submittedWebsiteUrl = typeof websiteUrl === 'string' ? websiteUrl.trim() : '';
+    if (!businessName || !submittedWebsiteUrl) {
+      return res.status(400).json({ error: 'Business name and website URL are required.' });
+    }
+
+    let normalizedWebsiteUrl = submittedWebsiteUrl;
+    if (!/^https?:\/\//i.test(normalizedWebsiteUrl)) {
+      normalizedWebsiteUrl = `https://${normalizedWebsiteUrl}`;
+    }
+    try {
+      new URL(normalizedWebsiteUrl);
+    } catch {
+      return res.status(400).json({ error: 'Please provide a valid website URL.' });
+    }
+
     let orgId = req.user?.organizationId;
     if (!orgId) {
       let org = await prisma.organization.findFirst();
       if (!org) {
         org = await prisma.organization.create({
-          data: { name: `${name} Workspace`, plan: 'growth' },
+          data: { name: `${businessName} Workspace`, plan: 'growth' },
         });
       }
       orgId = org.id;
     }
 
-    const business = await prisma.business.create({
-      data: {
-        organizationId: orgId,
-        name: name || 'MarketMind Brand',
-        websiteUrl: websiteUrl || 'https://marketmind.ai',
-        industry: industry || 'Technology & SaaS',
-        description: description || 'Pioneering intelligent automation and digital solutions.',
-        productsAndServices: JSON.stringify(productsAndServices || ['Cloud Growth Platform', 'Automation Suite']),
-        targetAudience: targetAudience || 'Founders, CMOs, and Marketing Directors',
-        targetLocations: JSON.stringify(targetLocations || ['Global', 'North America']),
-        marketingGoals: JSON.stringify(marketingGoals || ['Leads', 'Sales', 'Website Traffic']),
-        monthlyBudget: Number(monthlyBudget) || 50000,
-        dailyBudgetLimit: Number(dailyBudgetLimit) || 2000,
-        brandColors: JSON.stringify(brandColors || { primary: '#537CF3', secondary: '#1CB77B', accent: '#DC5495' }),
-        brandTone: brandTone || 'Professional & Authoritative',
-        language: language || 'English',
-      },
+    const businessData = {
+      name: businessName,
+      websiteUrl: normalizedWebsiteUrl,
+      industry: industry || 'Professional Services',
+      description: description || 'Digital growth business profile for our company.',
+      productsAndServices: JSON.stringify(productsAndServices || ['Core Offer', 'Lead Generation', 'Customer Support']),
+      targetAudience: targetAudience || 'Prospective customers and decision-makers in our market',
+      targetLocations: JSON.stringify(targetLocations || ['Local Market', 'Regional Market', 'Online']),
+      marketingGoals: JSON.stringify(marketingGoals || ['Generate Leads', 'Increase Traffic', 'Improve Brand Awareness']),
+      monthlyBudget: Number(monthlyBudget) || 50000,
+      dailyBudgetLimit: Number(dailyBudgetLimit) || 2000,
+      brandColors: JSON.stringify(brandColors || { primary: '#537CF3', secondary: '#1CB77B', accent: '#DC5495' }),
+      brandTone: brandTone || 'Professional & Authoritative',
+      language: language || 'English',
+    };
+
+    // Update the organization's primary profile so /active keeps returning the submitted details.
+    const existingBusiness = await prisma.business.findFirst({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: 'asc' },
     });
+
+    const business = existingBusiness
+      ? await prisma.business.update({
+          where: { id: existingBusiness.id },
+          data: businessData,
+        })
+      : await prisma.business.create({
+          data: { organizationId: orgId, ...businessData },
+        });
 
     // Run the complete initial AI onboarding analysis asynchronously
     MarketingBrainOrchestrator.runFullOnboardingAnalysis(business.id).catch((e) =>

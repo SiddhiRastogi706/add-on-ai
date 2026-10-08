@@ -31,16 +31,17 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   const [step, setStep] = useState(1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisPhase, setAnalysisPhase] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
-    name: 'Truck Mitra',
-    websiteUrl: 'https://truckmitra.com',
-    industry: 'Logistics & Commercial Fleet Transport',
-    description: 'Online truck transport booking, freight rates, and fleet logistics across India.',
-    productsAndServices: ['Full Truckload Freight Booking', 'Intercity Fleet Network', 'Verified Driver Matching'],
-    targetAudience: 'Shippers, Fleet Owners, Transport Managers & SME Manufacturers',
-    targetLocations: ['India', 'Delhi NCR', 'Mumbai', 'Bangalore', 'Jaipur'],
+    name: '',
+    websiteUrl: '',
+    industry: 'Professional Services',
+    description: 'We help customers discover our services, trust our expertise, and convert more leads through digital marketing.',
+    productsAndServices: ['Core Services', 'Premium Offer', 'Customer Support'],
+    targetAudience: 'Customers, buyers, and decision-makers in our market',
+    targetLocations: ['Local Market', 'Regional Market', 'Online'],
     marketingGoals: ['Leads', 'Website Traffic', 'Brand Awareness'],
     monthlyBudget: 50000,
     dailyBudgetLimit: 5000,
@@ -53,6 +54,16 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   const totalSteps = 11;
 
   const handleNext = () => {
+    setSubmitError(null);
+    if (step === 1 && !formData.name.trim()) {
+      setSubmitError('Please enter your business name.');
+      return;
+    }
+    if (step === 2 && !formData.websiteUrl.trim()) {
+      setSubmitError('Please enter your company website URL.');
+      return;
+    }
+
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
@@ -65,12 +76,36 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   };
 
   const triggerAnalysis = async () => {
+    const businessName = formData.name.trim();
+    const enteredWebsiteUrl = formData.websiteUrl.trim();
+    if (!businessName || !enteredWebsiteUrl) {
+      setSubmitError('Business name and website URL are required.');
+      return;
+    }
+
+    const normalizedWebsiteUrl = /^https?:\/\//i.test(enteredWebsiteUrl)
+      ? enteredWebsiteUrl
+      : `https://${enteredWebsiteUrl}`;
+    try {
+      new URL(normalizedWebsiteUrl);
+    } catch {
+      setSubmitError('Please enter a valid company website URL.');
+      return;
+    }
+
+    setSubmitError(null);
     setIsAnalyzing(true);
 
     try {
-      await ApiClient.createBusiness(formData);
+      await ApiClient.createBusiness({
+        ...formData,
+        name: businessName,
+        websiteUrl: normalizedWebsiteUrl,
+      });
     } catch (e) {
-      console.warn('Proceeding with client simulated orchestration:', e);
+      setIsAnalyzing(false);
+      setSubmitError(e instanceof Error ? e.message : 'Could not save your business details. Please try again.');
+      return;
     }
 
     // Sequence through the 7 check milestones with animated delays
@@ -486,6 +521,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
             <ArrowLeft className="w-3.5 h-3.5" />
             Back
           </button>
+
+          {submitError && (
+            <p role="alert" className="mx-3 text-xs font-semibold text-rose-600">
+              {submitError}
+            </p>
+          )}
 
           <button
             onClick={handleNext}

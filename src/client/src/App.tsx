@@ -28,6 +28,15 @@ import { CopilotWidget } from './components/copilot/CopilotWidget';
 import { ApiClient } from './services/api';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
+const hasCompletedBusinessSetup = (userId?: string) => {
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(`business_setup_complete_${userId}`) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 const getInitialPublicSlug = (): PublicPageSlug | null => {
   if (typeof window === 'undefined') return null;
   const p = window.location.pathname.replace(/^\/p\//, '').replace(/\/$/, '');
@@ -36,7 +45,7 @@ const getInitialPublicSlug = (): PublicPageSlug | null => {
 };
 
 export const App: React.FC = () => {
-  const { user, business, currentView, setCurrentView, isLoading } = useAuth();
+  const { user, currentView, setCurrentView, isLoading } = useAuth();
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'admin'>('signup');
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(1);
   const [pendingRecsCount, setPendingRecsCount] = useState(3);
@@ -167,7 +176,7 @@ export const App: React.FC = () => {
         onSuccess={() => {
           if (user?.role === 'SUPER_ADMIN') {
             setCurrentView('admin');
-          } else if (!business) {
+          } else if (!hasCompletedBusinessSetup(user?.id)) {
             setCurrentView('onboarding');
           } else {
             setCurrentView('dashboard');
@@ -179,7 +188,18 @@ export const App: React.FC = () => {
 
   // View: Onboarding Wizard
   if (currentView === 'onboarding') {
-    return <OnboardingWizard onComplete={() => setCurrentView('dashboard')} />;
+    return (
+      <OnboardingWizard
+        onComplete={() => {
+          try {
+            if (user?.id) localStorage.setItem(`business_setup_complete_${user.id}`, 'true');
+          } catch (error) {
+            console.warn('Could not remember business setup completion:', error);
+          }
+          setCurrentView('dashboard');
+        }}
+      />
+    );
   }
 
   // Render Authenticated Shell (Sidebar + Header + Page View)

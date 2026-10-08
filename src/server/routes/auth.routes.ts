@@ -46,14 +46,14 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     await prisma.business.create({
       data: {
         organizationId: org.id,
-        name: organizationName || 'Truck Mitra',
-        industry: 'Logistics & Fleet Transport',
-        websiteUrl: 'https://truckmitra.com',
-        description: 'Online truck transport booking, freight rates, and fleet logistics across India.',
-        productsAndServices: JSON.stringify(['Full Truckload Transport', 'Intercity Freight Booking', 'Verified Fleet Network']),
-        targetAudience: 'Shippers, Fleet Owners, Transport Managers & SME Manufacturers',
-        targetLocations: JSON.stringify(['India', 'Delhi NCR', 'Mumbai', 'Bangalore', 'Jaipur']),
-        marketingGoals: JSON.stringify(['Increase Freight Booking Leads', 'Acquire Verified Fleet Partners']),
+        name: organizationName || name || 'Your Business',
+        industry: 'Professional Services',
+        websiteUrl: 'https://yourwebsite.com',
+        description: 'Digital growth business profile for our company.',
+        productsAndServices: JSON.stringify(['Core Offer', 'Lead Generation', 'Customer Support']),
+        targetAudience: 'Prospective customers and decision-makers in our market',
+        targetLocations: JSON.stringify(['Local Market', 'Regional Market', 'Online']),
+        marketingGoals: JSON.stringify(['Generate Leads', 'Increase Traffic', 'Improve Brand Awareness']),
         brandColors: JSON.stringify({ primary: '#2563EB', secondary: '#10B981', accent: '#F59E0B' }),
         brandTone: 'Professional, Trustworthy & Efficient',
         dailyBudgetLimit: 5000,
@@ -418,13 +418,6 @@ router.post('/otp/send', authLimiter, async (req: Request, res: Response) => {
       },
     });
 
-    // If in development/sandbox and testing with a dummy or unseeded identifier, link to primary workspace user
-    if (!user && (cleanId.includes('truckmitra') || cleanId.includes('skyexpress') || cleanId.includes('demo') || cleanId.includes('test') || cleanId.length > 3)) {
-      user = await prisma.user.findFirst({
-        orderBy: { createdAt: 'asc' },
-      });
-    }
-
     if (!user) {
       return res.status(404).json({ error: 'No registered user found with this email or phone number. Please sign up first.' });
     }
@@ -673,8 +666,23 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Dispatch SMS via SmsService (Fast2SMS / Twilio / FoxxSMS / Smart Sandbox)
+    // Do not advance to the OTP screen unless an SMS gateway confirms dispatch.
     const smsResult = await SmsService.sendOtp(cleanPhone, otp);
+
+    if (!smsResult.success) {
+      otpMemoryCache.delete(cleanPhone);
+      if (existingUser) {
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { resetOtp: null, resetOtpExpires: null },
+        });
+      }
+      console.warn(`[Auth] OTP SMS delivery failed via ${smsResult.provider}: ${smsResult.error}`);
+      return res.status(502).json({
+        error: 'SMS could not be delivered. Check the SMS gateway credentials, account balance, and DLT sender/template configuration, then try again.',
+        provider: smsResult.provider,
+      });
+    }
 
     const masked = cleanPhone.length === 10
       ? `+91 ${cleanPhone.slice(0, 2)}••••••${cleanPhone.slice(-2)}`
@@ -682,7 +690,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: `6-digit verification code sent to ${masked}`,
+      message: `${smsResult.provider} accepted the OTP request to ${masked}. Delivery to the phone is not confirmed yet.`,
       phone: masked,
       rawPhone: cleanPhone,
       isNewUser: !existingUser,
@@ -716,19 +724,30 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
       ? email.trim().toLowerCase()
       : cacheEntry?.email;
 
-    // Check in DB
-    let user = await prisma.user.findFirst({
+    // Resolve the phone identity and email identity separately so an OR query
+    // cannot pick a different account unpredictably when either value matches.
+    const phoneUser = await prisma.user.findFirst({
       where: {
         OR: [
           { phoneNumber: cleanPhone },
           { phoneNumber: `+91${cleanPhone}` },
           { phoneNumber: `91${cleanPhone}` },
           { email: `${cleanPhone}@addon.ai` },
-          ...(resolvedEmail ? [{ email: resolvedEmail }] : []),
         ],
       },
       include: { organization: true },
     });
+    const emailUser = resolvedEmail
+      ? await prisma.user.findUnique({
+          where: { email: resolvedEmail },
+          include: { organization: true },
+        })
+      : null;
+
+    // A phone OTP proves control of the phone, not of an email address. Only
+    // authenticate the phone-linked account; keep a submitted email as contact
+    // information rather than switching into an unrelated email account.
+    let user = phoneUser;
 
     const isCacheMatch = cacheEntry && cacheEntry.otp === cleanOtp && cacheEntry.expiresAt > Date.now();
     const isDbMatch = user && user.resetOtp === cleanOtp && user.resetOtpExpires && user.resetOtpExpires.getTime() > Date.now();
@@ -748,7 +767,9 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
       isNewUser = true;
       const workspaceName = organizationName?.trim() || `${resolvedName}'s Workspace`;
       const dummyPasswordHash = await bcrypt.hash(`phone-auth-${cleanPhone}-${Date.now()}`, 10);
-      const userEmail = resolvedEmail || `${cleanPhone}@addon.ai`;
+      const userEmail = emailUser
+        ? `${cleanPhone}@addon.ai`
+        : resolvedEmail || `${cleanPhone}@addon.ai`;
 
       const org = await prisma.organization.create({
         data: {
@@ -762,6 +783,7 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
       user = await prisma.user.create({
         data: {
           email: userEmail,
+          contactEmail: resolvedEmail || null,
           passwordHash: dummyPasswordHash,
           name: resolvedName,
           role: 'ADMIN',
@@ -796,13 +818,10 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
         updateData.name = resolvedName;
       }
       if (resolvedEmail) {
-        const conflictingUser = await prisma.user.findFirst({
-          where: { email: resolvedEmail, NOT: { id: user.id } },
-        });
-        if (!conflictingUser) {
-          updateData.email = resolvedEmail;
-        }
+        updateData.contactEmail = resolvedEmail;
       }
+      // The submitted address is contact information only; changing the account
+      // email here would silently change its login identity without verification.
       if (!user.phoneNumber) {
         updateData.phoneNumber = `+91${cleanPhone}`;
       }
@@ -816,26 +835,39 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, organizationId: user.organizationId, role: user.role },
+      { id: user.id,       email: user.email,
+      contactEmail: user.contactEmail, organizationId: user.organizationId, role: user.role },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
 
-    // Dispatch login alert email addressed to user's real name and email
+    // Send the welcome email only after a new account's phone OTP is verified.
     const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'Local Network';
-    const emailToDispatch = resolvedEmail || user.email;
     const nameToGreet = user.name || resolvedName || 'Founder';
 
-    EmailService.sendLoginSuccess(
-      emailToDispatch,
-      {
-        name: nameToGreet,
-        ip: clientIp,
-        loginMethod: `Phone OTP (${cleanPhone})`,
-        loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'medium' }),
-      },
-      user.organizationId
-    ).catch(err => console.warn('[Auth] Phone login email warning:', err.message));
+    if (isNewUser && resolvedEmail) {
+      EmailService.sendWelcome(
+        resolvedEmail,
+        nameToGreet,
+        undefined,
+        user.organizationId
+      ).then(result => {
+        if (!result.sent) {
+          console.warn(`[Auth] Welcome email could not be delivered: ${result.error || result.reason || 'email provider rejected the request'}`);
+        }
+      }).catch(err => console.warn('[Auth] Welcome email dispatch error:', err.message));
+    } else if (!isNewUser) {
+      EmailService.sendLoginSuccess(
+        user.email,
+        {
+          name: nameToGreet,
+          ip: clientIp,
+          loginMethod: `Phone OTP (${cleanPhone})`,
+          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'medium' }),
+        },
+        user.organizationId
+      ).catch(err => console.warn('[Auth] Phone login email warning:', err.message));
+    }
 
     res.json({
       success: true,
@@ -847,6 +879,7 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        contactEmail: user.contactEmail,
         name: user.name,
         role: user.role,
         phoneNumber: user.phoneNumber,
@@ -869,4 +902,3 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
 });
 
 export default router;
-

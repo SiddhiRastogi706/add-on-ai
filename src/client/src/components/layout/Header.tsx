@@ -65,25 +65,27 @@ export const Header: React.FC<HeaderProps> = ({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-500 to-indigo-600 flex items-center justify-center text-white shadow-soft font-bold text-sm">
-              {business?.name ? business.name.slice(0, 2).toUpperCase() : 'TM'}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-500 to-indigo-600 flex items-center justify-center text-white shadow-soft font-bold text-sm shrink-0">
+              {business?.name ? business.name.slice(0, 2).toUpperCase() : 'AB'}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-800 text-sm">{business?.name || 'Truck Mitra'}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+            <div className="min-w-0 max-w-[min(60vw,36rem)]">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="font-semibold text-slate-800 text-sm leading-snug break-words whitespace-normal max-w-full">
+                  {business?.name || 'Your Business'}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
                   Slot #1 Lifetime (₹499)
                 </span>
               </div>
-              <div className="text-xs text-slate-400 flex items-center gap-1">
-                <span>{business?.websiteUrl || 'https://truckmitra.com'}</span>
+              <div className="text-xs text-slate-400 flex items-center gap-1 min-w-0 mt-0.5">
+                <span className="break-all leading-tight max-w-full">{business?.websiteUrl || 'https://yourwebsite.com'}</span>
                 <a
-                  href={business?.websiteUrl || 'https://truckmitra.com'}
+                  href={business?.websiteUrl || 'https://yourwebsite.com'}
                   target="_blank"
                   rel="noreferrer"
-                  className="hover:text-slate-600"
+                  className="hover:text-slate-600 shrink-0"
                 >
                   <ExternalLink className="w-2.5 h-2.5 inline" />
                 </a>
@@ -154,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({
               {user?.name ? user.name.slice(0, 1) : 'S'}
             </div>
             <div className="hidden sm:block text-left">
-              <div className="text-xs font-semibold text-slate-800 leading-tight">{user?.name || 'SkyExpress Roadlines'}</div>
+              <div className="text-xs font-semibold text-slate-800 leading-tight">{user?.name || 'Business Owner'}</div>
               <div className="text-[10px] text-slate-400 font-medium">
                 {user?.role === 'SUPER_ADMIN' ? 'Platform Administrator' : 'Managing Director & Founder'}
               </div>

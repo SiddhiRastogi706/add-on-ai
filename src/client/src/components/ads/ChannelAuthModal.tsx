@@ -24,6 +24,7 @@ interface ChannelAuthModalProps {
   onClose: () => void;
   onAuthenticated: (platform: AdPlatform, accountDetails: { accountId: string; pageName: string }) => void;
   initialPlatform?: AdPlatform;
+  businessName?: string;
 }
 
 export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
@@ -31,10 +32,12 @@ export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
   onClose,
   onAuthenticated,
   initialPlatform = 'meta_facebook',
+  businessName,
 }) => {
+  const resolvedBusinessName = (businessName || 'Your Business').trim() || 'Your Business';
   const [platform, setPlatform] = useState<AdPlatform>(initialPlatform);
   const [accountId, setAccountId] = useState('act_1412096886566594');
-  const [pageName, setPageName] = useState('Truck Mitra');
+  const [pageName, setPageName] = useState(resolvedBusinessName);
   const [phoneOrHandle, setPhoneOrHandle] = useState('+91 98765 43210');
   const [connecting, setConnecting] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
@@ -93,8 +96,10 @@ export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
           if (match) setAccountId(match[0]);
         }
         const fbPageInt = integrations.find((i) => i.id === 'facebook_page');
-        if (fbPageInt?.connectedAccountName && fbPageInt.connectedAccountName.includes('TRUCK MITRA')) {
-          setPageName('Truck Mitra');
+        if (fbPageInt?.connectedAccountName) {
+          setPageName(fbPageInt.connectedAccountName.trim() || resolvedBusinessName);
+        } else {
+          setPageName(resolvedBusinessName);
         }
       })
       .catch((err) => {
@@ -108,13 +113,13 @@ export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
     setShowLaunchScreen(false);
     if (pKey === 'meta_facebook') {
       setAccountId('act_1412096886566594');
-      setPageName('Truck Mitra');
+      setPageName(resolvedBusinessName);
     } else if (pKey === 'meta_instagram') {
       setAccountId('act_1412096886566594');
-      setPhoneOrHandle('@truckmitra');
+      setPhoneOrHandle(`@${resolvedBusinessName.toLowerCase().replace(/\s+/g, '')}`);
     } else if (pKey === 'google_ads') {
       setAccountId('CID 558-011-9985');
-      setPageName('truckmitra.in');
+      setPageName(resolvedBusinessName.toLowerCase().replace(/\s+/g, '') + '.com');
     } else if (pKey === 'whatsapp_business') {
       setAccountId('WABA_928174019');
       setPhoneOrHandle('+91 98765 43210');
@@ -257,7 +262,7 @@ export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
                     <Facebook className="w-4 h-4 fill-white" />
                   </div>
                   <div>
-                    <div className="font-extrabold text-slate-900">{pageName || 'Truck Mitra'}</div>
+                    <div className="font-extrabold text-slate-900">{pageName || 'Your Business'}</div>
                     <div className="text-[11px] font-mono text-slate-500">{accountId}</div>
                   </div>
                 </div>
@@ -463,7 +468,7 @@ export const ChannelAuthModal: React.FC<ChannelAuthModalProps> = ({
                         : setPageName(e.target.value)
                     }
                     required
-                    placeholder="e.g. Truck Mitra or @truckmitra"
+                    placeholder="e.g. Your Business or @yourbrand"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-all"
                   />
                 </div>

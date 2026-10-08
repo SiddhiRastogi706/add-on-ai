@@ -44,55 +44,62 @@ export class SmsService {
    */
   static async sendOtp(mobileNumber: string, otp: string): Promise<SmsSendResult> {
     const rawMobile = this.cleanMobileNumber(mobileNumber);
-    const withCountryCode = `91${rawMobile}`;
     const e164 = `+91${rawMobile}`;
-
-    console.log(`\n=============================================================`);
-    console.log(`📱 [Addon AI Phone OTP] Verification Code for ${mobileNumber}:`);
-    console.log(`   >>> REAL OTP: ${otp} <<< (Valid for 10 minutes)`);
-    console.log(`=============================================================\n`);
 
     const currentProvider = (process.env.SMS_PROVIDER || this.provider || 'foxxsms').toLowerCase();
     const apiKey = process.env.SMS_API_KEY || this.apiKey;
     const user = process.env.SMS_USER || this.user;
 
-    // 1. Primary: FoxxSMS (Enterprise Gateway TRKMIT)
+    const failures: string[] = [];
+
+    // 1. Primary: FoxxSMS (Enterprise Gateway)
     if (currentProvider === 'foxxsms' || (apiKey && user && currentProvider !== 'fast2sms' && currentProvider !== 'twilio')) {
-      const result = await this.sendViaFoxxSMS(e164, otp);
-      if (result.success) return result;
-      console.warn(`[SmsService] FoxxSMS dispatch notice (${result.error}), checking configured fallback...`);
+      if (!apiKey || !user) {
+        failures.push('FoxxSMS is selected but SMS_USER or SMS_API_KEY is missing.');
+      } else {
+        const result = await this.sendViaFoxxSMS(e164, otp);
+        if (result.success) return result;
+        failures.push(`FoxxSMS: ${result.error || 'delivery failed'}`);
+        console.warn(`[SmsService] FoxxSMS dispatch failed (${result.error}), checking configured fallback...`);
+      }
     }
 
-    // 2. Fast2SMS (If explicitly selected as provider)
-    if (this.fast2smsKey && currentProvider === 'fast2sms') {
+    // 2. Fast2SMS is the configured secondary gateway or selected primary.
+    if (this.fast2smsKey && (currentProvider === 'fast2sms' || failures.length > 0)) {
       const fastResult = await this.sendViaFast2SMS(rawMobile, otp);
       if (fastResult.success) return fastResult;
+      failures.push(`Fast2SMS: ${fastResult.error || 'delivery failed'}`);
+    } else if (currentProvider === 'fast2sms') {
+      failures.push('Fast2SMS is selected but FAST2SMS_API_KEY is missing.');
     }
 
     // 3. Twilio (If explicitly selected as provider)
     if (this.twilioSid && this.twilioToken && this.twilioFrom && currentProvider === 'twilio') {
       const twilioResult = await this.sendViaTwilio(e164, otp);
       if (twilioResult.success) return twilioResult;
+      failures.push(`Twilio: ${twilioResult.error || 'delivery failed'}`);
+    } else if (currentProvider === 'twilio') {
+      failures.push('Twilio is selected but its account credentials are incomplete.');
     }
 
-    // Secondary fallback: Try FoxxSMS if not already tried
+    // Try FoxxSMS as a secondary gateway when another provider was selected.
     if (apiKey && user && currentProvider !== 'foxxsms') {
       const retryResult = await this.sendViaFoxxSMS(e164, otp);
       if (retryResult.success) return retryResult;
+      failures.push(`FoxxSMS: ${retryResult.error || 'delivery failed'}`);
     }
 
-    // Default Sandbox Mode (if no gateway could send)
-    console.log(`[SmsService] Running in Smart Sandbox Mode for ${mobileNumber}.`);
     return {
-      success: true,
-      messageId: `sandbox-${Date.now()}`,
-      provider: 'sandbox',
-      rawResponse: `OTP ${otp} generated and logged to console for testing.`,
+      success: false,
+      error: failures.length > 0
+        ? failures.join(' ')
+        : 'No SMS gateway is configured. Configure FoxxSMS, Fast2SMS, or Twilio credentials.',
+      provider: currentProvider,
     };
   }
 
   /**
-   * FoxxSMS Enterprise Gateway Dispatcher (TRUCK MITRA / TRKMIT)
+   * FoxxSMS Enterprise Gateway Dispatcher
    */
   private static async sendViaFoxxSMS(formattedMobile: string, otp: string): Promise<SmsSendResult> {
     const template =
@@ -100,7 +107,7 @@ export class SmsService {
       'Dear user, your OTP for Truck Mitra login is {OTP}. Do not share it with anyone. Valid for 5 minutes.';
     const message = template.replace('{OTP}', otp);
 
-    console.log(`[SmsService] Dispatching OTP to mobile: ${formattedMobile} via FoxxSMS Gateway (TRKMIT)...`);
+    console.log('[SmsService] Dispatching OTP via FoxxSMS Gateway...');
 
     try {
       const user = process.env.SMS_USER || this.user;
@@ -137,22 +144,27 @@ export class SmsService {
       });
 
       const data = typeof response.data === 'string' ? response.data.trim() : JSON.stringify(response.data);
-      console.log(`[SmsService] FoxxSMS Gateway response:`, data);
+      const normalizedResponse = data.toLowerCase();
+      const indicatesFailure = /error|failed|unsuccess|invalid|denied|failure/.test(normalizedResponse);
+      const indicatesSuccess =
+        !indicatesFailure && /(^|[^a-z])success([^a-z]|$)/.test(normalizedResponse);
+      const safeResponse = data.replace(/\+?\d{10,13}/g, '[redacted]');
 
-      if (data.toLowerCase().includes('sent,success') || data.toLowerCase().includes('success')) {
+      if (indicatesSuccess) {
         const parts = data.split(',');
         const messageId = parts.length > 3 ? parts[3] : undefined;
+        console.log('[SmsService] FoxxSMS accepted the OTP request; handset delivery is unconfirmed.');
         return {
           success: true,
           messageId,
-          rawResponse: data,
+          rawResponse: safeResponse,
           provider: 'foxxsms',
         };
       } else {
         return {
           success: false,
-          error: data,
-          rawResponse: data,
+          error: safeResponse,
+          rawResponse: safeResponse,
           provider: 'foxxsms',
         };
       }

@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Smartphone,
   CheckCircle2,
-  KeyRound,
   ArrowLeft,
   Clock,
   Zap,
@@ -22,9 +21,6 @@ import {
   EyeOff,
   Flame,
   PartyPopper,
-  MessageSquare,
-  HelpCircle,
-  Check,
   X
 } from 'lucide-react';
 
@@ -33,6 +29,15 @@ interface AuthPageProps {
   onSuccess: () => void;
   onBack?: () => void;
 }
+
+// FIX 5: safe localStorage read (private mode / blocked storage mein crash nahi hoga)
+const safeGetItem = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
 
 export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSuccess, onBack }) => {
   // Authentication Step: 'phone' (enter number) -> 'otp' (verify 6-digit code)
@@ -61,38 +66,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Google Account Chooser Modal State (Matching Image 3)
+  // Google Account Chooser Modal State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [googleSigningInEmail, setGoogleSigningInEmail] = useState<string | null>(null);
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
   const [customGoogleName, setCustomGoogleName] = useState('');
   const [showCustomGoogleInput, setShowCustomGoogleInput] = useState(false);
 
-  // User's own Google accounts stored on this specific device (Never hardcoded to any specific user)
+  // FIX 3: simple init, koi "siddhi" filter hack nahi
   const [googleAccounts, setGoogleAccounts] = useState<Array<{ name: string; email: string; color: string }>>(() => {
     try {
       const saved = localStorage.getItem('addon_google_accounts');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Clear any old mock or hardcoded 'siddhi' test accounts
-        const cleaned = parsed.filter(
-          (acc: any) =>
-            acc &&
-            acc.email &&
-            !acc.email.toLowerCase().includes('siddhi') &&
-            !acc.name?.toLowerCase().includes('siddhi')
-        );
-        localStorage.setItem('addon_google_accounts', JSON.stringify(cleaned));
-        return cleaned;
-      }
-    } catch {}
-    return [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.filter((a: any) => a?.email) : [];
+    } catch {
+      return [];
+    }
   });
 
-  // Admin Login State
-  const [adminEmail, setAdminEmail] = useState('admin@marketmind.ai');
-  const [adminPassword, setAdminPassword] = useState('admin123');
+  // FIX 1: admin credentials ab hardcoded nahi hain
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+
+  // FIX 5: claimed offer safe read
+  const claimedOffer = safeGetItem('claimed_offer');
 
   // Input Refs for 6-Digit OTP auto-advance
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -146,7 +144,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     }
   };
 
-  // STEP 1: Send Real 6-Digit OTP to Phone Number (No password required)
+  // STEP 1: Send 6-Digit OTP to Phone Number
   const handleSendPhoneOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -168,13 +166,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
         organizationName: workspaceName.trim() || undefined,
       });
 
+      if (!res.smsSent) {
+        setSmsSent(false);
+        setError('SMS delivery was not confirmed. Please try again later or contact support.');
+        return;
+      }
+
       setMaskedPhone(res.phone || `${countryCode} ${cleanNum.slice(0, 2)}••••••${cleanNum.slice(-2)}`);
       setRawPhone(fullPhone);
       setSmsProvider(res.provider || 'sms');
-      setSmsSent(res.smsSent ?? true);
-      if (res.demoOtp) {
+      setSmsSent(true);
+
+      // FIX 4: demo OTP sirf development mein
+      if (res.demoOtp && import.meta.env.DEV) {
         setSandboxCode(res.demoOtp);
       }
+
       setMessage(res.message || `6-digit verification code sent to ${fullPhone}`);
       setStep('otp');
       setCountdown(45);
@@ -190,7 +197,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     }
   };
 
-  // STEP 2: Verify 6-digit OTP and Log In (100% Passwordless)
+  // STEP 2: Verify 6-digit OTP and Log In
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -213,7 +220,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       });
 
       setMessage(res.message || 'Mobile number verified successfully! Welcome to Addon AI.');
-      
+
       if (res.token && res.user) {
         await login(res.token, res.user);
         setTimeout(() => {
@@ -223,13 +230,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
         throw new Error('Verification succeeded but failed to issue session token.');
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid or expired OTP. Please enter the correct 6 digits.');
+      const errorMessage = err.message || 'Invalid or expired OTP. Please enter the correct 6 digits.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fast Auto-fill for Developer Sandbox
+  // Fast Auto-fill for Developer Sandbox (sirf DEV mein use hota hai)
   const handleFillSandboxCode = () => {
     const code = sandboxCode || '123456';
     const digits = code.slice(0, 6).split('');
@@ -237,11 +245,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     otpInputRefs.current[5]?.focus();
   };
 
-  // Google Sign-In Trigger (Opens Account Chooser Modal)
+  // FIX 2: Google sign-in abhi sirf DEV mein (production mein fake login band)
   const handleGoogleSignIn = () => {
+    if (!import.meta.env.DEV) {
+      setError('Google sign-in is currently unavailable. Please use mobile OTP.');
+      return;
+    }
     setError(null);
     setShowGoogleModal(true);
-    // If user has no saved accounts on this device yet, show account input directly
     if (googleAccounts.length === 0) {
       setShowCustomGoogleInput(true);
     }
@@ -262,8 +273,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     }
   };
 
-  // Select and Authenticate with a Google Account
+  // Select and Authenticate with a Google Account (DEV only, see handleGoogleSignIn)
   const handleSelectGoogleAccount = async (accountEmail: string, accountName: string) => {
+    if (!import.meta.env.DEV) return;
     setError(null);
     setGoogleSigningInEmail(accountEmail);
     try {
@@ -271,7 +283,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       const charSum = accountEmail.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
       const chosenColor = palette[Math.abs(charSum) % palette.length];
 
-      // Save this account in user's browser device accounts list
       const updated = [
         { name: accountName, email: accountEmail, color: chosenColor },
         ...googleAccounts.filter((a) => a.email.toLowerCase() !== accountEmail.toLowerCase()),
@@ -292,7 +303,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     }
   };
 
-  // Demo Login (Instant Preview)
+  // Demo Login (abhi UI mein use nahi ho raha)
   const handleDemoSignIn = async () => {
     setError(null);
     setLoading(true);
@@ -349,10 +360,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
       {/* Main Glass Shell Container */}
       <div className="w-full max-w-5xl bg-slate-900/90 backdrop-blur-2xl rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative z-10 my-10 sm:my-0">
-        
-        {/* Left Value Showcase Column (Hidden on mobile/tablet, 5 cols on lg) */}
+
+        {/* Left Value Showcase Column */}
         <div className="hidden lg:flex lg:col-span-5 p-8 sm:p-10 bg-gradient-to-br from-slate-950 via-indigo-950/80 to-slate-900 text-white flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800/80 relative overflow-hidden">
-          {/* Ambient Corner Flare */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Top Brand Info */}
@@ -411,7 +421,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="font-bold text-xs text-white">Google Gemini 3.6 Flash Copilot</div>
+                  <div className="font-bold text-xs text-white">Google Gemini 2.5 Copilot</div>
                   <div className="text-[11px] text-slate-400">Conversational AI marketing advisor ready to assist in natural English & Hinglish.</div>
                 </div>
               </div>
@@ -430,7 +440,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
         {/* Right Authentication Form Column */}
         <div className="w-full lg:col-span-7 p-5 sm:p-8 lg:p-12 bg-white text-slate-900 flex flex-col justify-center relative">
-          
+
           {/* Mobile-Only Brand Header */}
           <div className="lg:hidden flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-600 to-rose-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
@@ -507,7 +517,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
           )}
 
           {/* Founder Slot #1 Lifetime Offer Banner */}
-          {localStorage.getItem('claimed_offer') === 'lifetime_499' && !isAdminMode && (
+          {claimedOffer === 'lifetime_499' && !isAdminMode && (
             <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-amber-500/15 to-indigo-500/15 border-2 border-emerald-400 text-xs text-slate-900 flex items-center justify-between shadow-sm animate-in fade-in">
               <div className="flex items-center gap-2.5">
                 <span className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-xs">
@@ -552,9 +562,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                     <input
                       type="email"
                       required
+                      autoComplete="username"
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
-                      placeholder="admin@marketmind.ai"
+                      placeholder="Admin email"
                       className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     />
                   </div>
@@ -567,6 +578,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                     <input
                       type={showAdminPassword ? 'text' : 'password'}
                       required
+                      autoComplete="current-password"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
                       placeholder="Master admin password"
@@ -580,19 +592,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                       {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAdminEmail('admin@marketmind.ai');
-                      setAdminPassword('admin123');
-                    }}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300"
-                  >
-                    Auto-Fill Default Master Credentials (admin@marketmind.ai)
-                  </button>
                 </div>
 
                 <button
@@ -616,7 +615,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
               </form>
             </div>
           ) : step === 'phone' ? (
-            /* Mode 2: STEP 1 - REAL PHONE NUMBER INPUT (NO PASSWORDS) */
+            /* Mode 2: STEP 1 - PHONE NUMBER INPUT */
             <div className="space-y-6 animate-in fade-in">
               <div>
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -631,7 +630,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
               </div>
 
               <form onSubmit={handleSendPhoneOtp} className="space-y-4">
-                {/* 1. Full Name Input (Top Field) */}
+                {/* Full Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                     <span>Full Name</span>
@@ -652,7 +651,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                   </span>
                 </div>
 
-                {/* 2. Email Address Input (Top Field) */}
+                {/* Email */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                     <span>Work Email / Gmail</span>
@@ -673,7 +672,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                   </span>
                 </div>
 
-                {/* 3. Mobile Phone Number Input with Country Code */}
+                {/* Mobile Phone Number */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Your Mobile Phone Number (For 6-Digit SMS OTP)
@@ -764,7 +763,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                   </span>
                 </div>
 
-                {/* Google Sign In Button (Image 2) */}
+                {/* Google Sign In Button */}
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
@@ -800,11 +799,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>Enter 6-Digit OTP</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Live SMS
+                  Gateway accepted
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  We've sent a 6-digit verification code to <span className="font-bold text-slate-800 font-mono">{maskedPhone}</span>.
+                  The SMS gateway accepted the OTP request for{' '}
+                  <span className="font-bold text-slate-800 font-mono">{maskedPhone}</span>.
+                </p>
+                <p className="text-[11px] text-amber-700 mt-1">
+                  Phone delivery is not confirmed yet. Check your SMS inbox and spam messages.
                 </p>
                 {(fullName || email) && (
                   <div className="mt-2 text-xs font-bold text-indigo-700 bg-indigo-50/70 border border-indigo-100 rounded-xl px-3 py-1.5 inline-flex items-center gap-1.5">
@@ -814,7 +817,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 )}
               </div>
 
-
+              {/* DEV only: sandbox OTP auto-fill */}
+              {import.meta.env.DEV && sandboxCode && (
+                <button
+                  type="button"
+                  onClick={handleFillSandboxCode}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300"
+                >
+                  [DEV] Auto-fill sandbox OTP
+                </button>
+              )}
 
               {/* 6-Digit Individual Input Boxes */}
               <form onSubmit={handleVerifyOtp} className="space-y-5">
@@ -829,6 +841,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                         ref={(el) => (otpInputRefs.current[index] = el)}
                         type="text"
                         inputMode="numeric"
+                        autoComplete={index === 0 ? 'one-time-code' : 'off'}
                         maxLength={index === 0 ? 6 : 1}
                         value={digit}
                         onChange={(e) => handleDigitChange(index, e.target.value)}
@@ -841,7 +854,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
                 {/* Resend Code Button & Timer */}
                 <div className="flex items-center justify-between text-xs pt-1">
-                  <span className="text-slate-500">Didn't receive the SMS?</span>
+                  <span className="text-slate-500">
+                    Didn't receive the SMS?
+                  </span>
                   <button
                     type="button"
                     disabled={countdown > 0 || loading}
@@ -852,7 +867,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                     <span>{countdown > 0 ? `Resend code in ${countdown}s` : 'Resend SMS OTP'}</span>
                   </button>
                 </div>
-
 
                 {/* Submit Verification Button */}
                 <button
@@ -879,7 +893,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
         </div>
       </div>
 
-      {/* Google Account Chooser Modal (Matching Image 3) */}
+      {/* Google Account Chooser Modal (DEV only, since handleGoogleSignIn blocks it in production) */}
       {showGoogleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
           <div className="relative w-full max-w-md my-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-left animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
@@ -910,7 +924,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
               </button>
             </div>
 
-            {/* Account List (Per-User Dynamic Google Accounts) */}
+            {/* Account List */}
             <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto">
               {googleAccounts.map((acc, idx) => {
                 const isCurrent = googleSigningInEmail === acc.email;
@@ -951,7 +965,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 );
               })}
 
-              {/* Account Input Box (When no account exists on device or user clicks Use another account) */}
+              {/* Account Input Box */}
               {(showCustomGoogleInput || googleAccounts.length === 0) && (
                 <div className="p-6 bg-slate-50/70 space-y-3.5 animate-in fade-in">
                   <div className="flex items-center justify-between">
@@ -1005,9 +1019,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                       type="button"
                       disabled={!customGoogleEmail.includes('@') || Boolean(googleSigningInEmail)}
                       onClick={() => {
-                        const email = customGoogleEmail.trim().toLowerCase();
-                        const name = customGoogleName.trim() || email.split('@')[0];
-                        handleSelectGoogleAccount(email, name);
+                        const emailVal = customGoogleEmail.trim().toLowerCase();
+                        const nameVal = customGoogleName.trim() || emailVal.split('@')[0];
+                        handleSelectGoogleAccount(emailVal, nameVal);
                       }}
                       className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                     >
@@ -1024,7 +1038,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 </div>
               )}
 
-              {/* Use Another Account Button (Shown when accounts exist and input is collapsed) */}
+              {/* Use Another Account Button */}
               {!showCustomGoogleInput && googleAccounts.length > 0 && (
                 <button
                   type="button"

@@ -170,13 +170,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Bottom Profile & Exit */}
       <div className="p-3 border-t border-slate-200/60 bg-slate-50/50">
         <div className="flex items-center justify-between p-2 rounded-2xl bg-white border border-slate-200/70 shadow-soft">
-          <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
               {user?.name ? user.name.slice(0, 1) : 'U'}
             </div>
-            <div className="truncate">
-              <div className="text-xs font-semibold text-slate-800 truncate">{user?.name || 'SkyExpress Roadlines'}</div>
-              <div className="text-[10px] text-slate-400 truncate">{user?.email || 'skyexpressroad@gmail.com'}</div>
+            <div className="min-w-0 break-words">
+              <div className="text-xs font-semibold text-slate-800 leading-tight break-words whitespace-normal">{user?.name || 'Business Owner'}</div>
+              <div className="text-[10px] text-slate-400 leading-tight break-all">{user?.contactEmail || user?.email || 'owner@yourbusiness.com'}</div>
             </div>
           </div>
           <button

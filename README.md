@@ -140,11 +140,8 @@ PORT=5000
 NODE_ENV=development
 APP_URL=http://localhost:3000
 
-# Database
-# Default: Local zero-config SQLite
+# Database (SQLite; must match the provider in prisma/schema.prisma)
 DATABASE_URL="file:./dev.db"
-# For production PostgreSQL:
-# DATABASE_URL="postgresql://user:password@localhost:5432/marketmind"
 
 # Authentication
 JWT_SECRET=your_super_secret_jwt_key_here

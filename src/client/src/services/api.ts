@@ -100,6 +100,22 @@ export class ApiClient {
   // Social
   static getSocialPosts = (businessId?: string) => this.request<any[]>(`/social/posts${businessId ? `?businessId=${businessId}` : ''}`);
   static generateSocialCalendar = (businessId?: string) => this.request<any>('/social/generate-calendar', { method: 'POST', body: JSON.stringify({ businessId }) });
+  static generateSocialPost = (data: {
+    businessId?: string;
+    channel?: string;
+    topic?: string;
+    caption?: string;
+    imageUrl?: string;
+  }) => this.request<any>('/social/generate-calendar', {
+    method: 'POST',
+    body: JSON.stringify({
+      businessId: data.businessId,
+      channel: data.channel,
+      topic: data.topic,
+      caption: data.caption,
+      imageUrl: data.imageUrl,
+    }),
+  });
   static publishSocialPost = (id: string) => this.request<any>(`/social/posts/${id}/publish`, { method: 'POST' });
   static publishDirectSocial = (data: {
     businessId?: string;
