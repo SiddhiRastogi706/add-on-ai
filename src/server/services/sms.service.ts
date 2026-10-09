@@ -46,6 +46,22 @@ export class SmsService {
     const rawMobile = this.cleanMobileNumber(mobileNumber);
     const e164 = `+91${rawMobile}`;
 
+    const isLocalDevWithoutGateway = process.env.NODE_ENV !== 'production' &&
+      !process.env.SMS_API_KEY &&
+      !process.env.SMS_USER &&
+      !process.env.FAST2SMS_API_KEY &&
+      !process.env.TWILIO_ACCOUNT_SID;
+
+    if (isLocalDevWithoutGateway) {
+      console.warn(`[SmsService] Development fallback enabled: no SMS gateway is configured. Mock OTP ${otp} will be accepted locally for ${e164}.`);
+      return {
+        success: true,
+        messageId: `dev-${Date.now()}`,
+        provider: 'demo-dev',
+        rawResponse: 'Local development fallback enabled',
+      };
+    }
+
     const currentProvider = (process.env.SMS_PROVIDER || this.provider || 'foxxsms').toLowerCase();
     const apiKey = process.env.SMS_API_KEY || this.apiKey;
     const user = process.env.SMS_USER || this.user;

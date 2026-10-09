@@ -60,6 +60,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       try {
+        if (!ApiClient.hasToken()) return;
+
         const res = await ApiClient.getMe();
         if (res && res.user) {
           setUser(res.user);

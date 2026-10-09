@@ -5,6 +5,10 @@ export class ApiClient {
     return localStorage.getItem('marketmind_token');
   }
 
+  static hasToken(): boolean {
+    return Boolean(this.getToken());
+  }
+
   static setToken(token: string) {
     localStorage.setItem('marketmind_token', token);
   }

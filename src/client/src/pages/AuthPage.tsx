@@ -3,7 +3,6 @@ import { useAuth } from '../store/AuthContext';
 import { ApiClient } from '../services/api';
 import { BRAND } from '@config/brand';
 import {
-  BrainCircuit,
   ArrowRight,
   ShieldCheck,
   Smartphone,
@@ -368,20 +367,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
           {/* Top Brand Info */}
           <div className="space-y-6 relative z-10">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-600 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                <BrainCircuit className="w-7 h-7" />
+              <div className="w-32 h-14 shrink-0">
+                <img
+                  src="/addonaix-horizontal.png"
+                  alt="AddonAIx Smart AI Digital Solutions"
+                  className="w-full h-full object-contain scale-110 brightness-90 contrast-110 drop-shadow-[0_0_0.7px_#0f172a]"
+                />
               </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                  {BRAND.appName}
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    v2.4
-                  </span>
-                </h1>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="text-[11px] font-semibold text-slate-300">Passwordless Real Mobile Identity</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[11px] font-semibold text-slate-300">AI-Powered Growth Platform</span>
               </div>
             </div>
 
@@ -443,8 +438,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
           {/* Mobile-Only Brand Header */}
           <div className="lg:hidden flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-600 to-rose-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
-              <BrainCircuit className="w-6 h-6" />
+            <div className="w-26 h-[52px] shrink-0">
+              <img
+                src="/addonaix-horizontal.png"
+                alt="AddonAIx Smart AI Digital Solutions"
+                className="w-full h-full object-contain scale-110 brightness-90 contrast-110 drop-shadow-[0_0_0.7px_#0f172a]"
+              />
             </div>
             <div>
               <div className="font-extrabold text-slate-900 text-base leading-tight flex items-center gap-1.5">

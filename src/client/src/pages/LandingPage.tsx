@@ -5,7 +5,6 @@ import { SAAS_PLANS } from '@config/plans';
 import confetti from 'canvas-confetti';
 import { ApiClient } from '../services/api';
 import {
-  BrainCircuit,
   Search,
   Share2,
   Megaphone,
@@ -309,18 +308,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartFree, onLogin, 
       {/* Main Navigation (Colorful Accents) */}
       <header className="sticky top-0 left-0 right-0 h-18 sm:h-20 bg-white/90 backdrop-blur-xl border-b border-indigo-100/70 z-40 px-4 sm:px-8 lg:px-12 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2.5 sm:gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-pink-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 font-black text-sm sm:text-base shrink-0">
-            a
-          </div>
-          <div>
-            <span className="font-extrabold text-neutral-950 text-base sm:text-lg tracking-tight">addon.ai</span>
-            <span className="hidden sm:inline-block ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-500/10 to-pink-500/10 text-indigo-700 border border-indigo-200/60">
-              Autonomous CMO
-            </span>
+          <div className="w-36 h-[72px] rounded-xl bg-white overflow-hidden shrink-0">
+            <img
+              src="/addonaix-horizontal.png"
+              alt="AddonAIx Smart AI Digital Solutions"
+              className="w-full h-full object-contain scale-110 brightness-90 contrast-110 drop-shadow-[0_0_0.7px_#0f172a]"
+            />
           </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-7 text-xs font-semibold text-neutral-600">
+        <nav className="hidden md:flex items-center gap-7 md:ml-8 text-xs font-semibold text-neutral-600">
           <a href="#agents" className="hover:text-indigo-600 transition-colors">Agents</a>
           <a href="#stack" className="hover:text-indigo-600 transition-colors">Stack</a>
           <button
@@ -467,7 +464,214 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartFree, onLogin, 
         )}
       </AnimatePresence>
 
-      {/* HERO SECTION (Ultra-Colorful & Vibrant) */}
+      {/* HERO SECTION (Dark Neon Poster Style) */}
+      <section className="hidden relative overflow-hidden bg-[#020d1f] text-white">
+        <div className="absolute inset-0 opacity-90" style={{ backgroundImage: 'radial-gradient(circle at 20% 10%, rgba(43,195,255,0.35), transparent 20%), radial-gradient(circle at 80% 20%, rgba(76,107,255,0.35), transparent 24%), radial-gradient(circle at 50% 80%, rgba(0,198,255,0.2), transparent 30%), linear-gradient(180deg, rgba(2,13,31,1) 0%, rgba(3,16,36,1) 100%)' }} />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:36px_36px] opacity-20" />
+        <div className="absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 pb-10 pt-6 sm:pt-8">
+          <div className="flex items-center justify-between gap-4 pb-5 border-b border-cyan-500/20">
+            <div className="flex items-center gap-3">
+              <div className="h-[72px] w-36 rounded-xl bg-white overflow-hidden">
+                <img
+                  src="/addonaix-horizontal.png"
+                  alt="AddonAIx Smart AI Digital Solutions"
+                  className="h-full w-full object-contain scale-110 brightness-90 contrast-110 drop-shadow-[0_0_0.7px_#0f172a]"
+                />
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
+              <span>More Reach</span>
+              <span className="text-cyan-300">More Leads</span>
+              <span>More Growth</span>
+            </div>
+          </div>
+
+          <div className="pt-6 md:pt-10">
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+                <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.9)]" />
+                Auto-optimized growth engine
+              </div>
+
+              <h1 className="mt-5 text-4xl font-black leading-[0.9] tracking-[-0.06em] text-white sm:text-5xl lg:text-[6rem]">
+                <span className="block text-transparent bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-500 bg-clip-text">अब नहीं डाउन होगा</span>
+                <span className="block text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-500 bg-clip-text">एड का शटर!</span>
+              </h1>
+
+              <div className="mt-4 flex flex-col items-center justify-center gap-3 md:flex-row">
+                <span className="inline-flex items-center rounded-xl border border-cyan-300/30 bg-sky-500/10 px-4 py-2 text-2xl font-black text-white shadow-[0_0_18px_rgba(14,165,233,0.2)] md:text-4xl">Add on AI</span>
+                <span className="inline-flex items-center rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-cyan-500 px-4 py-2 text-2xl font-black text-white shadow-[0_0_30px_rgba(59,130,246,0.5)] md:text-4xl">PRICE CUTTER!</span>
+              </div>
+            </div>
+
+            <div className="mt-8 grid items-end gap-5 lg:grid-cols-[1fr_1.5fr_1fr]">
+              <div className="space-y-4 rounded-[28px] border border-cyan-400/30 bg-[linear-gradient(180deg,rgba(9,26,51,0.82),rgba(15,25,46,0.82))] p-4 shadow-[0_0_30px_rgba(59,130,246,0.18)] backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-500/10 text-cyan-200">
+                      <Search className="h-4 w-4" />
+                    </div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Target audience</div>
+                  </div>
+                  <div className="flex -space-x-2">
+                    {[1,2,3].map((item) => (
+                      <div key={item} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-cyan-300 to-blue-600 text-[9px] font-black text-white">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-3">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-cyan-200/60">Performance</div>
+                  <div className="flex items-end gap-2">
+                    {[26, 42, 30, 62, 46, 74].map((value, idx) => (
+                      <div key={idx} className="flex-1 rounded-t-xl bg-gradient-to-t from-cyan-500 to-blue-400" style={{ height: `${value}px` }} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border border-cyan-400/20 bg-[#0a1b2d] p-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/70">Social Media</div>
+                    <div className="mt-1 text-2xl font-black text-white">+48%</div>
+                  </div>
+                  <div className="flex gap-2 text-xl text-cyan-300">
+                    <span>f</span>
+                    <span>in</span>
+                    <span>x</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative flex flex-col items-center">
+                <div className="relative w-full max-w-[640px] rounded-[30px] border border-cyan-400/30 bg-[linear-gradient(180deg,rgba(11,23,42,0.8),rgba(5,12,23,0.9))] p-4 shadow-[0_0_40px_rgba(59,130,246,0.22)]">
+                  <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3 text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                    </div>
+                    <span>Dashboard</span>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-slate-950 via-sky-950 to-slate-950 p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-white">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 font-black text-lg">AI</div>
+                        <div className="text-lg font-black">Add on AI</div>
+                      </div>
+                      <div className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200">Live</div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-4">
+                      {[40, 60, 52, 74].map((value, idx) => (
+                        <div key={idx} className="flex h-28 items-end justify-center rounded-xl border border-cyan-400/20 bg-slate-900/80 p-2">
+                          <div className="w-full rounded-t-lg bg-gradient-to-t from-cyan-500 via-blue-400 to-sky-300" style={{ height: `${value}%` }} />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      {[
+                        ['Total Reach', '2.4M'],
+                        ['Leads Generated', '48.7K'],
+                        ['Conversion Rate', '6.8%'],
+                      ].map(([label, value], idx) => (
+                        <div key={idx} className="rounded-xl border border-cyan-400/20 bg-slate-900/70 p-3 text-center">
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/80">{label}</div>
+                          <div className="mt-2 text-xl font-black text-white">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-center justify-center">
+                  <div className="relative inline-flex items-center justify-center rounded-full border-[6px] border-cyan-400/40 bg-gradient-to-r from-[#f7d57c] via-[#f3b92b] to-[#f7d57c] px-8 py-5 text-center shadow-[0_0_40px_rgba(251,191,36,0.8)]">
+                    <div className="text-[12px] font-black uppercase tracking-[0.24em] text-slate-900">Up to</div>
+                    <div className="text-5xl font-black leading-none text-slate-900 sm:text-7xl">50%</div>
+                    <div className="absolute -right-2 -top-3 rounded-full border border-amber-700/60 bg-amber-200 px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-amber-900">OFF</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[28px] border border-cyan-400/30 bg-[linear-gradient(180deg,rgba(9,26,51,0.82),rgba(15,25,46,0.82))] p-4 shadow-[0_0_30px_rgba(59,130,246,0.18)] backdrop-blur-sm">
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-3">
+                  <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
+                    <span>SEO &amp; SEM</span>
+                    <Search className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-2xl font-black text-white">+84%</div>
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600" />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-3">
+                  <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
+                    <span>Lead Generation</span>
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex -space-x-2">
+                      {[1,2,3].map((item) => (
+                        <div key={item} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-sky-300 to-blue-600 text-[9px] font-black text-white">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-2xl font-black text-white">+32%</div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-3">
+                  <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
+                    <span>Online Advertising</span>
+                    <Megaphone className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-2xl font-black text-white">ADS</div>
+                    <div className="h-10 w-16 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-12 grid gap-4 md:grid-cols-6">
+            {[
+              ['Digital Advertising', 'Megaphone'],
+              ['Digital Marketing', 'TrendingUp'],
+              ['Social Media Marketing', 'Search'],
+              ['Online Advertising', 'Globe'],
+              ['SEO/SEM', 'Sparkles'],
+              ['Marketing Consultancy', 'Star'],
+            ].map(([label, icon]) => (
+              <div key={label} className="rounded-2xl border border-cyan-400/20 bg-sky-500/5 p-4 text-center shadow-[0_0_20px_rgba(14,165,233,0.08)] backdrop-blur-sm">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400/20 via-blue-500/15 to-violet-500/20 text-cyan-200 ring-1 ring-cyan-400/30">
+                  {icon === 'Megaphone' && <Megaphone className="h-5 w-5" />}
+                  {icon === 'TrendingUp' && <TrendingUp className="h-5 w-5" />}
+                  {icon === 'Search' && <Search className="h-5 w-5" />}
+                  {icon === 'Globe' && <Globe className="h-5 w-5" />}
+                  {icon === 'Sparkles' && <Sparkles className="h-5 w-5" />}
+                  {icon === 'Star' && <Star className="h-5 w-5" />}
+                </div>
+                <div className="text-sm font-black uppercase tracking-tight text-cyan-100">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 pb-6 text-center">
+            <div className="inline-block rounded-full border border-cyan-400/30 bg-cyan-500/5 px-5 py-3 text-2xl font-black italic tracking-[0.08em] text-transparent bg-gradient-to-r from-cyan-200 via-sky-300 to-blue-400 bg-clip-text shadow-[0_0_22px_rgba(14,165,233,0.18)]">YOUR GROWTH. OUR MISSION.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* HERO SECTION (Legacy) */}
       <section className="pt-12 sm:pt-20 pb-16 sm:pb-20 px-4 sm:px-12 max-w-6xl mx-auto text-center relative">
         {/* Capsule Pill */}
         <motion.div

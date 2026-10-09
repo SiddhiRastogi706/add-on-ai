@@ -95,19 +95,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Brand Logo & Wordmark */}
-        <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-slate-200/60">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-500 via-indigo-600 to-blush-500 flex items-center justify-center text-white shadow-soft shadow-brand-500/20 shrink-0">
-              <BrainCircuit className="w-6 h-6 animate-pulse-subtle" />
-            </div>
-            <div>
-              <div className="font-extrabold text-slate-900 tracking-tight text-base leading-tight flex items-center gap-1.5">
-                {BRAND.appName}
-                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200/60">
-                  v2.4
-                </span>
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium">Your Autonomous AI CMO</div>
+        <div className="h-[76px] px-3 sm:px-4 flex items-center justify-between border-b border-slate-200/60">
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="w-[200px] h-[60px] shrink-0">
+              <img
+                src="/addonaix-sidebar.png"
+                alt="AddonAIx Smart AI Digital Solutions"
+                className="w-full h-full object-contain brightness-90 contrast-125 drop-shadow-[0_0_0.8px_#0f172a]"
+              />
             </div>
           </div>
 

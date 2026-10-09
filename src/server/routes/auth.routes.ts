@@ -666,10 +666,11 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Do not advance to the OTP screen unless an SMS gateway confirms dispatch.
+    // In local development, allow a safe mock SMS flow when no gateway is configured.
     const smsResult = await SmsService.sendOtp(cleanPhone, otp);
+    const isDevFallback = process.env.NODE_ENV !== 'production' && smsResult.provider === 'demo-dev';
 
-    if (!smsResult.success) {
+    if (!smsResult.success && !isDevFallback) {
       otpMemoryCache.delete(cleanPhone);
       if (existingUser) {
         await prisma.user.update({
@@ -690,13 +691,15 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: `${smsResult.provider} accepted the OTP request to ${masked}. Delivery to the phone is not confirmed yet.`,
+      message: isDevFallback
+        ? `Development SMS fallback accepted the OTP request to ${masked}. Use the temporary code visible in the dev console.`
+        : `${smsResult.provider} accepted the OTP request to ${masked}. Delivery to the phone is not confirmed yet.`,
       phone: masked,
       rawPhone: cleanPhone,
       isNewUser: !existingUser,
       provider: smsResult.provider,
-      smsSent: smsResult.success,
-      demoOtp: undefined, // Never expose real OTP in client response
+      smsSent: true,
+      demoOtp: isDevFallback ? otp : undefined,
     });
   } catch (err: any) {
     console.error('Phone send-otp error:', err);
