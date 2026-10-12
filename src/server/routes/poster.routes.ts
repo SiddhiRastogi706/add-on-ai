@@ -4,6 +4,7 @@ import { getTenantBusiness } from '../middleware/tenant';
 import { prisma } from '../db';
 import { getAIProvider } from '../ai/factory';
 import { StorageService } from '../services/storage.service';
+import { WalletBillingError } from '../services/wallet.service';
 
 const router = Router();
 
@@ -221,6 +222,7 @@ You must return valid JSON ONLY with these exact fields:
         posterSpec = JSON.parse(match[0]);
       }
     } catch (aiErr: any) {
+      if (aiErr instanceof WalletBillingError) throw aiErr;
       console.warn('AI Poster generation fallback triggered:', aiErr?.message);
     }
 

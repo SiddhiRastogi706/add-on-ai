@@ -4,6 +4,7 @@ import { SocialAgent } from '../ai/agents/social.agent';
 import { OptimizationAgent } from '../ai/agents/optimization.agent';
 import { ReportingAgent } from '../ai/agents/reporting.agent';
 import { SocialPublishService } from '../services/social-publish.service';
+import { walletBillingContext } from '../services/wallet-billing-context';
 import * as Sentry from '@sentry/node';
 
 export interface AutomationModuleStatus {
@@ -151,6 +152,7 @@ export class AutomationEngine {
       });
 
       for (const biz of businesses) {
+        walletBillingContext.enterWith({ organizationId: biz.organizationId });
         // Log automated sanity check in activity logs
         const traceId = `auto-${Date.now().toString(36)}`;
 

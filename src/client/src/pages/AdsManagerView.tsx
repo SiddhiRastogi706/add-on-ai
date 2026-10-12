@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ApiClient } from '../services/api';
 import { useAuth } from '../store/AuthContext';
 import {
@@ -27,7 +27,6 @@ import {
   RefreshCw,
   Image as ImageIcon,
   Film,
-  Key,
   Volume2,
   ArrowUpRight,
   Copy,
@@ -88,6 +87,12 @@ export const AdsManagerView: React.FC = () => {
   const [adImageUrl, setAdImageUrl] = useState(
     'https://image.pollinations.ai/prompt/A%20genuine%20real-life%20photograph%20of%20a%20modern%20commercial%20freight%20truck%20on%20Indian%20highway%20golden%20hour%2C%20shot%20on%20Sony%20A7%20IV%2050mm%20lens%2C%20raw%20photo%20style%2C%20zero%20CGI%2C%20zero%20plastic%20skin?width=1080&height=1080&model=flux&enhance=true&nologo=true&seed=849201'
   );
+  const [adMediaPreviewUrl, setAdMediaPreviewUrl] = useState<string | null>(null);
+  const [selectedMediaType, setSelectedMediaType] = useState<'image' | 'video'>('image');
+  const [selectedMediaName, setSelectedMediaName] = useState<string | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const [adRationale, setAdRationale] = useState('Engineered for maximum CTR among fleet operators, traders & logistics managers.');
   const [videoAdScript, setVideoAdScript] = useState<any>({
     hook: 'Tired of unexpected freight delivery delays and unverified transport drivers?',
@@ -129,12 +134,17 @@ export const AdsManagerView: React.FC = () => {
   const [isPublishingSocial, setIsPublishingSocial] = useState(false);
   const [publishResult, setPublishResult] = useState<any | null>(null);
   const [showFbConnectModal, setShowFbConnectModal] = useState(false);
-  const [showProApisModal, setShowProApisModal] = useState(false);
   const [fbVerifyData, setFbVerifyData] = useState<any | null>(null);
   const [isVerifyingFb, setIsVerifyingFb] = useState(false);
   const [customFbPageId, setCustomFbPageId] = useState('755745967627018');
   const [customFbToken, setCustomFbToken] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (adMediaPreviewUrl) URL.revokeObjectURL(adMediaPreviewUrl);
+    };
+  }, [adMediaPreviewUrl]);
 
   // Web Audio synthesizer for commercial soundbed
   const playCommercialSoundbed = () => {
@@ -211,7 +221,13 @@ export const AdsManagerView: React.FC = () => {
         if (res.subheadline) setAdSubheadline(res.subheadline);
         if (res.cta) setAdCta(res.cta);
         if (res.signature) setAdUrl(res.signature);
-        if (res.aiImageUrl) setAdImageUrl(res.aiImageUrl);
+        if (res.aiImageUrl) {
+          setAdImageUrl(res.aiImageUrl);
+          setAdMediaPreviewUrl(null);
+          setSelectedMediaName(null);
+          setSelectedMediaType('image');
+          setMediaUploadError(null);
+        }
         if (res.rationale) setAdRationale(res.rationale);
         if (res.videoAdScript) setVideoAdScript(res.videoAdScript);
         if (adFormat === 'video') playCommercialSoundbed();
@@ -223,7 +239,43 @@ export const AdsManagerView: React.FC = () => {
     }
   };
 
+  const handleGalleryMediaChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const mediaType = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : null;
+    if (!mediaType) {
+      setMediaUploadError('Please choose a supported image or video from your gallery.');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setAdMediaPreviewUrl(previewUrl);
+    setSelectedMediaName(file.name);
+    setSelectedMediaType(mediaType);
+    setAdFormat(mediaType);
+    setMediaUploadError(null);
+    setIsUploadingMedia(true);
+    try {
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error('Please choose a file that is 50 MB or smaller.');
+      }
+      const uploadedMedia = await ApiClient.uploadSocialMedia(file);
+      setAdImageUrl(uploadedMedia.url);
+    } catch (err: any) {
+      setMediaUploadError(err.message || 'Could not upload the selected media. Please try again.');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
   const handlePublishDirect = async (channel: 'facebook' | 'instagram' | 'all') => {
+    if (isUploadingMedia) return;
+    if (mediaUploadError) {
+      setPublishResult({ success: false, error: 'Upload the selected gallery media before publishing.' });
+      return;
+    }
     setIsPublishingSocial(true);
     try {
       const caption = `${adBadge}\n\n${adHeadline}\n\n${adSubheadline}\n\n👉 ${adCta}\n🔗 ${adUrl}\n\n#marketing #business #offer #growth`;
@@ -233,6 +285,7 @@ export const AdsManagerView: React.FC = () => {
         channels,
         caption,
         imageUrl: adImageUrl,
+        mediaType: selectedMediaType,
         headline: adHeadline,
         cta: adCta,
       });
@@ -247,8 +300,9 @@ export const AdsManagerView: React.FC = () => {
   };
 
   const handleWhatsAppShare = () => {
+    if (isUploadingMedia || mediaUploadError) return;
     const fullText = encodeURIComponent(
-      `*${adBadge}*\n\n*${adHeadline}*\n${adSubheadline}\n\n👉 *${adCta}*: ${adUrl}\n\n📸 Ad Creative: ${adImageUrl}`
+    `*${adBadge}*\n\n*${adHeadline}*\n${adSubheadline}\n\n👉 *${adCta}*: ${adUrl}\n\n${selectedMediaType === 'video' ? '🎬' : '📸'} Ad Creative: ${adImageUrl}`
     );
     window.open(`https://api.whatsapp.com/send?text=${fullText}`, '_blank');
   };
@@ -571,35 +625,6 @@ export const AdsManagerView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => {
-                setShowFbConnectModal(true);
-                handleVerifyFacebook();
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-xs font-bold text-blue-200 flex items-center gap-2 transition-all shadow-sm cursor-pointer"
-              title="Meta Graph API Live Verified Account Details"
-            >
-              <Facebook className="w-3.5 h-3.5 text-blue-400" />
-              <span>Facebook: <strong className="text-white">TRUCK MITRA</strong></span>
-              <span className="text-[10px] text-emerald-300 font-bold bg-emerald-500/20 border border-emerald-400/30 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live
-              </span>
-            </button>
-
-            <button
-              onClick={() => setShowProApisModal(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 text-xs font-bold text-purple-200 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              title="Ultra-Realistic Image & Video APIs"
-            >
-              <Key className="w-3.5 h-3.5 text-purple-300" />
-              <span>Realistic APIs</span>
-              <span className="text-[10px] text-purple-300 font-mono bg-white/10 px-1.5 py-0.5 rounded">
-                Flux &amp; SDXL
-              </span>
-            </button>
-          </div>
         </div>
 
         {/* Format Selector: Realistic Image Ad vs AI Video Ad */}
@@ -629,10 +654,33 @@ export const AdsManagerView: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-slate-300 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
-            <span className="text-emerald-400 font-bold">● Real Meta Graph API:</span>
-            <span>Direct auto-post to Facebook Page (TRUCK MITRA) &amp; Instagram</span>
-          </div>
+        </div>
+
+        <div className="relative z-10 flex flex-wrap items-center gap-3">
+          <input
+            ref={mediaInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={handleGalleryMediaChange}
+          />
+          <button
+            type="button"
+            onClick={() => mediaInputRef.current?.click()}
+            disabled={isUploadingMedia}
+            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-60"
+          >
+            {isUploadingMedia ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+            <span>{isUploadingMedia ? 'Uploading media...' : 'Choose photo or video from gallery'}</span>
+          </button>
+          <span className="text-[11px] text-slate-300">
+            {selectedMediaName ? `Selected: ${selectedMediaName}` : 'JPEG, PNG, WebP, GIF, MP4, MOV, or WebM (up to 50 MB)'}
+          </span>
+          {mediaUploadError && (
+            <span role="alert" className="w-full text-xs font-semibold text-rose-300">
+              {mediaUploadError}
+            </span>
+          )}
         </div>
 
         {/* Prompt Input Bar */}
@@ -979,8 +1027,8 @@ export const AdsManagerView: React.FC = () => {
                 >
                   {/* Photo Backdrop */}
                   <img
-                    src={adImageUrl}
-                    alt="AI Ad Creative"
+                    src={adMediaPreviewUrl || adImageUrl}
+                    alt="Ad creative preview"
                     className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-slate-950/45 pointer-events-none" />
@@ -1025,8 +1073,19 @@ export const AdsManagerView: React.FC = () => {
               </div>
             ) : (
               <div className="bg-slate-900/50 backdrop-blur-md p-4 sm:p-6 rounded-3xl border border-white/10 space-y-4">
-                {/* Smartphone Reel Simulation */}
-                <div className="flex justify-center">
+                {selectedMediaType === 'video' ? (
+                  <div className="flex justify-center">
+                    <video
+                      src={adMediaPreviewUrl || adImageUrl}
+                      controls
+                      playsInline
+                      className="w-full max-w-sm max-h-[70vh] rounded-3xl bg-black shadow-2xl"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {/* Smartphone Reel Simulation */}
+                    <div className="flex justify-center">
                   <div className="relative w-[280px] h-[500px] sm:w-[300px] sm:h-[530px] rounded-[36px] bg-slate-950 p-3 shadow-2xl ring-4 ring-slate-800 flex flex-col justify-between overflow-hidden select-none">
                     {/* Notch */}
                     <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-3.5 bg-slate-900 rounded-full z-40 flex items-center justify-center">
@@ -1036,13 +1095,13 @@ export const AdsManagerView: React.FC = () => {
                     {/* Reel Background Visual */}
                     <div className="absolute inset-0 z-10">
                       <img
-                        src={adImageUrl}
-                        alt="Reel Background"
+                        src={adMediaPreviewUrl || adImageUrl}
+                        alt="Reel background"
                         className={`w-full h-full object-cover transition-all duration-1000 ${
                           isVideoPlaying ? 'scale-110 motion-safe:animate-pulse duration-[4500ms]' : 'scale-100'
                         }`}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/60" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/60 pointer-events-none" />
                     </div>
 
                     {/* Top Bar */}
@@ -1119,6 +1178,8 @@ export const AdsManagerView: React.FC = () => {
                     </button>
                   ))}
                 </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1153,7 +1214,7 @@ export const AdsManagerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handlePublishDirect('facebook')}
-                  disabled={isPublishingSocial}
+                  disabled={isPublishingSocial || isUploadingMedia}
                   className="p-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex flex-col items-start gap-1.5 transition-all disabled:opacity-50 text-left cursor-pointer"
                 >
                   <div className="flex items-center justify-between w-full">
@@ -1167,7 +1228,7 @@ export const AdsManagerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handlePublishDirect('instagram')}
-                  disabled={isPublishingSocial}
+                  disabled={isPublishingSocial || isUploadingMedia}
                   className="p-3.5 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-600 to-purple-600 hover:opacity-95 active:scale-95 text-white font-bold text-xs shadow-md shadow-rose-500/20 flex flex-col items-start gap-1.5 transition-all disabled:opacity-50 text-left cursor-pointer"
                 >
                   <div className="flex items-center justify-between w-full">
@@ -1181,6 +1242,7 @@ export const AdsManagerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleWhatsAppShare}
+                  disabled={isUploadingMedia || Boolean(mediaUploadError)}
                   className="p-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-500/20 flex flex-col items-start gap-1.5 transition-all text-left cursor-pointer"
                 >
                   <div className="flex items-center justify-between w-full">
@@ -1850,85 +1912,6 @@ export const AdsManagerView: React.FC = () => {
         </div>
       )}
 
-      {/* AI Creative Engines & API Keys Guide Modal */}
-      {showProApisModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">AI Photorealism &amp; Video Engines</h3>
-                  <p className="text-xs text-slate-500">Commercial Realistic Ad Generation Stack</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowProApisModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    Flux.1 Commercial Photorealism Engine
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-200 text-emerald-800 text-[10px] uppercase font-black">
-                    Active &amp; Ready
-                  </span>
-                </div>
-                <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  Every prompt is rendered with Sony A7 IV 50mm f/1.8 DSLR parameters for authentic commercial imagery — zero plastic skin or artificial cartoon effects.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="flex items-center gap-1.5 text-slate-900">
-                    <Film className="w-4 h-4 text-rose-600" />
-                    Kling AI &amp; Runway Gen-3 (1080p Video Reels)
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] uppercase font-bold">
-                    Script Ready
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Generates a 4-scene commercial storyboard with calibrated pacing, on-screen text overlays, and voiceover cues.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 space-y-2">
-                <span className="font-bold text-slate-900 block">How to Add Your Personal Pro API Keys?</span>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  You can configure the following keys in your backend <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-900 font-mono text-[10px]">.env</code> file:
-                </p>
-                <div className="bg-slate-900 text-emerald-400 p-2.5 rounded-xl font-mono text-[10px] space-y-0.5">
-                  <div>REPLICATE_API_TOKEN=r8_... (Flux 1.1 Pro 8K)</div>
-                  <div>KLING_API_KEY=kling_... (Realistic 1080p Video)</div>
-                  <div>OPENAI_API_KEY=sk-... (DALL-E 3 Commercial)</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowProApisModal(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer"
-              >
-                Got It
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

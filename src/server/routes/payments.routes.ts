@@ -7,6 +7,7 @@ import { RazorpayService } from '../services/razorpay.service';
 import { CashfreeService } from '../services/cashfree.service';
 import { EmailService } from '../services/email.service';
 import { SAAS_PLANS } from '../../config/plans';
+import { WalletService } from '../services/wallet.service';
 
 const router = Router();
 
@@ -67,12 +68,22 @@ router.post('/create-order', async (req: Request, res: Response) => {
       customerName,
       customerEmail,
       customerPhone,
+      walletAmount,
     } = req.body;
 
     const isSlot = planId === 'founder_slot' || planId === 'slot_499';
+    const isWalletTopUp = planId === 'wallet_topup';
 
-    if (!planId || (!SAAS_PLANS[planId] && !isSlot)) {
-      return res.status(400).json({ error: 'Invalid planId. Must be one of: starter, growth, pro, founder_slot' });
+    if (!planId || (!SAAS_PLANS[planId] && !isSlot && !isWalletTopUp)) {
+      return res.status(400).json({ error: 'Invalid planId. Must be a paid plan, founder_slot, or wallet_topup.' });
+    }
+
+    if (isWalletTopUp && !authUser) {
+      return res.status(401).json({ error: 'Please log in before adding money to your wallet.' });
+    }
+
+    if (isWalletTopUp && (!Number.isInteger(walletAmount) || walletAmount < 100 || walletAmount > 50000)) {
+      return res.status(400).json({ error: 'Wallet top-ups must be a whole-rupee amount between ₹100 and ₹50,000.' });
     }
 
     if (planId === 'free') {
@@ -157,7 +168,10 @@ router.post('/create-order', async (req: Request, res: Response) => {
     let amountRupees: number;
     let planDisplayName: string;
 
-    if (isSlot || planId === 'founder_slot') {
+    if (isWalletTopUp) {
+      amountRupees = walletAmount;
+      planDisplayName = 'Addon AI Wallet Top-up';
+    } else if (isSlot || planId === 'founder_slot') {
       amountRupees = 499;
       planDisplayName = 'Founder Lifetime Slot #1';
     } else {
@@ -171,7 +185,7 @@ router.post('/create-order', async (req: Request, res: Response) => {
 
     // 1. CASHFREE PRODUCTION INTEGRATION (Primary Live Gateway)
     if (cfConfig.configured) {
-      const orderId = `cf_${isSlot || planId === 'founder_slot' ? 'slot' : 'plan'}_${Date.now().toString().slice(-8)}_${Math.floor(Math.random() * 1000)}`;
+      const orderId = `cf_${isWalletTopUp ? 'wallet' : isSlot || planId === 'founder_slot' ? 'slot' : 'plan'}_${Date.now().toString().slice(-8)}_${Math.floor(Math.random() * 1000)}`;
 
       const cfOrder = await CashfreeService.createOrder({
         orderId,
@@ -186,8 +200,8 @@ router.post('/create-order', async (req: Request, res: Response) => {
       await prisma.payment.create({
         data: {
           organizationId,
-          planId: isSlot ? 'founder_slot' : planId,
-          billingCycle: isSlot || planId === 'founder_slot' ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+          planId: isWalletTopUp ? 'wallet_topup' : isSlot ? 'founder_slot' : planId,
+          billingCycle: isWalletTopUp ? 'wallet' : isSlot || planId === 'founder_slot' ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
           amountPaise,
           currency: 'INR',
           razorpayOrderId: cfOrder.orderId,
@@ -207,7 +221,7 @@ router.post('/create-order', async (req: Request, res: Response) => {
           id: planId,
           name: planDisplayName,
           priceInr: amountRupees,
-          billingCycle: isSlot || planId === 'founder_slot' ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+          billingCycle: isWalletTopUp ? 'wallet' : isSlot || planId === 'founder_slot' ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
         },
       });
     }
@@ -219,7 +233,7 @@ router.post('/create-order', async (req: Request, res: Response) => {
       receipt,
       {
         planId,
-        billingCycle: isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+        billingCycle: isWalletTopUp ? 'wallet' : isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
         organizationId,
         userEmail: userEmail || '',
       },
@@ -229,8 +243,8 @@ router.post('/create-order', async (req: Request, res: Response) => {
     await prisma.payment.create({
       data: {
         organizationId,
-        planId,
-        billingCycle: isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+        planId: isWalletTopUp ? 'wallet_topup' : planId,
+        billingCycle: isWalletTopUp ? 'wallet' : isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
         amountPaise,
         currency: 'INR',
         razorpayOrderId: order.id,
@@ -248,7 +262,7 @@ router.post('/create-order', async (req: Request, res: Response) => {
         id: planId,
         name: planDisplayName,
         priceInr: amountRupees,
-        billingCycle: isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+        billingCycle: isWalletTopUp ? 'wallet' : isSlot ? 'lifetime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
       },
     });
   } catch (err: any) {
@@ -312,10 +326,17 @@ router.post('/verify', authMiddleware, async (req: AuthRequest, res: Response) =
       });
     }
 
+    const wallet = payment.planId === 'wallet_topup'
+      ? await WalletService.getWallet(payment.organizationId)
+      : undefined;
+
     res.json({
       success: true,
-      message: 'Payment verified and subscription activated successfully!',
+      message: payment.planId === 'wallet_topup'
+        ? 'Payment verified and wallet balance updated successfully!'
+        : 'Payment verified and subscription activated successfully!',
       planId: payment.planId,
+      walletBalancePaise: wallet?.balancePaise,
     });
   } catch (err: any) {
     console.error('[Payments Error] Verify failed:', err.message);
@@ -379,6 +400,10 @@ router.post('/cashfree/verify', async (req: Request, res: Response) => {
       });
     }
 
+    const wallet = payment.planId === 'wallet_topup'
+      ? await WalletService.getWallet(payment.organizationId)
+      : undefined;
+
     // 4. Generate JWT token for seamless instant access
     let token: string | null = null;
     if (user) {
@@ -396,12 +421,15 @@ router.post('/cashfree/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: '✓ Cashfree payment successfully verified and subscription activated!',
+      message: payment.planId === 'wallet_topup'
+        ? '✓ Cashfree payment verified and wallet balance updated!'
+        : '✓ Cashfree payment successfully verified and subscription activated!',
       orderId: order_id,
       cfOrderId: verification.cfOrderId,
       amount: verification.amount,
       planId: payment.planId,
       status: 'PAID',
+      walletBalancePaise: wallet?.balancePaise,
       token,
       user: user
         ? {
@@ -558,6 +586,35 @@ async function activateSubscriptionPlan(params: {
   userEmail?: string;
   userName?: string;
 }) {
+  if (params.planId === 'wallet_topup') {
+    await prisma.$transaction(async (tx) => {
+      const paymentUpdate = await tx.payment.updateMany({
+        where: { id: params.paymentId, status: { not: 'PAID' } },
+        data: { status: 'PAID', razorpayPaymentId: params.razorpayPaymentId },
+      });
+
+      if (paymentUpdate.count === 0) return;
+
+      await tx.organization.update({
+        where: { id: params.organizationId },
+        data: { walletBalancePaise: { increment: params.amountPaise } },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          organizationId: params.organizationId,
+          amountPaise: params.amountPaise,
+          type: 'TOP_UP',
+          status: 'POSTED',
+          description: 'Wallet top-up',
+          referenceId: `wallet-payment:${params.paymentId}`,
+        },
+      });
+    });
+
+    return;
+  }
+
   const isSlot = params.planId === 'founder_slot' || params.planId === 'slot_499';
   const plan = isSlot ? SAAS_PLANS.growth : (SAAS_PLANS[params.planId] || SAAS_PLANS.growth);
   const isYearly = params.billingCycle === 'yearly';

@@ -1,6 +1,7 @@
 import { getAIProvider } from '../factory';
 import { CrawlerResult, BusinessProfileAI } from '../../../shared/types';
 import { MemoryService } from '../../services/memory.service';
+import { WalletBillingError } from '../../services/wallet.service';
 
 export class BIAgent {
   static async analyzeBusiness(
@@ -83,6 +84,7 @@ Return JSON with this schema:
         analyzedAt: new Date().toISOString(),
       };
     } catch (e) {
+      if (e instanceof WalletBillingError) throw e;
       console.warn('BI Agent fallback triggered:', e);
       return {
         businessId: business.id,

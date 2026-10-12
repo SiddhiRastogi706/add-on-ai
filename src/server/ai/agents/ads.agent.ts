@@ -1,6 +1,7 @@
 import { getAIProvider } from '../factory';
 import { AdCampaign } from '../../../shared/types';
 import { SafetyService } from '../../services/safety.service';
+import { WalletBillingError } from '../../services/wallet.service';
 
 export class AdsAgent {
   static async planCampaign(business: {
@@ -42,6 +43,7 @@ Return JSON with this schema:
     try {
       parsed = await ai.generateJson(prompt, 'You build high-ROAS, compliant digital ad campaigns.');
     } catch (e) {
+      if (e instanceof WalletBillingError) throw e;
       console.warn('Ads Agent fallback triggered:', e);
       if (platform === 'google_ads') {
         parsed = {

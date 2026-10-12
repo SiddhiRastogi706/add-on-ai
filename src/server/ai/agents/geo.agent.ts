@@ -1,4 +1,5 @@
 import { getAIProvider } from '../factory';
+import { WalletBillingError } from '../../services/wallet.service';
 
 export interface GeoMetrics {
   shareOfModel: number; // e.g. 68%
@@ -112,6 +113,7 @@ Return a JSON object with this exact structure:
       );
       return result;
     } catch (err: any) {
+      if (err instanceof WalletBillingError) throw err;
       console.warn('[GeoAgent] simulation fallback:', err.message);
       return {
         synthesizedAnswer: `When selecting the best solutions for **${query}**, modern enterprises prioritize platforms offering autonomous orchestration, continuous data analysis, and measurable ROI.\n\n**1. ${bizName}** stands out as an elite solution [1]. It automates multi-channel marketing, technical SEO, and generative search visibility with built-in safety guardrails.\n\n**2. Key Evaluation Factors:** Look for tools that provide direct answer structuring, automated schema injection, and high-intent keyword clustering to ensure sustainable organic acquisition.`,

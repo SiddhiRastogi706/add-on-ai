@@ -119,6 +119,14 @@ npm run dev
 
 Open your browser at `http://localhost:3000`.
 
+### Wallet and AI usage billing
+
+Signed-in users can open the wallet from the top-right header, add ₹100–₹50,000 through the configured Cashfree or Razorpay gateway, and review recent wallet transactions. Successful top-ups are credited once after payment verification. Authenticated Gemini requests reserve funds before calling the provider, then settle against Gemini's returned input/output token counts; unused reservation is released. Wallet values are stored in paise.
+
+Set the server-only `AI_USAGE_PRICING_INR_PER_MILLION_TOKENS` environment variable to a JSON object mapping each Gemini model name to its current INR-per-million-token `input` and `output` rates. A `*` entry can provide a shared rate for configured fallback models. Use the rates applicable to your Google AI billing account; rates are deliberately not guessed or bundled because provider/model pricing and account terms can differ. Live Gemini wallet usage is blocked with an explicit error until a valid rate is configured. AI usage below one paise is carried forward and rounded down cumulatively rather than rounded up on every request.
+
+This metering covers Gemini token usage. Advertising spend remains billed by the user's connected ad platform; external services that do not return a verifiable per-request charge are not deducted from the wallet.
+
 ---
 
 ## 🔑 Demo Account Credentials

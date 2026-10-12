@@ -1,4 +1,5 @@
 import { getAIProvider } from '../factory';
+import { WalletBillingError } from '../../services/wallet.service';
 import { SocialPost, SocialPlatform } from '../../../shared/types';
 import { SafetyService } from '../../services/safety.service';
 
@@ -142,6 +143,7 @@ Return JSON array with this schema:
     try {
       items = await ai.generateJson<any[]>(prompt, 'You are a Head of Social Media and Content Syndication.');
     } catch (e) {
+      if (e instanceof WalletBillingError) throw e;
       console.warn('Social Agent calendar generation fallback:', e);
     }
 
@@ -276,6 +278,7 @@ Return JSON array with this schema:
         }
       }
     } catch (err) {
+      if (err instanceof WalletBillingError) throw err;
       console.warn(`[SocialAgent] LLM classification error for ${bizName}, falling back to heuristic engine:`, err);
     }
 

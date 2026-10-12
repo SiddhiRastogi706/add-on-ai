@@ -680,7 +680,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
       }
       console.warn(`[Auth] OTP SMS delivery failed via ${smsResult.provider}: ${smsResult.error}`);
       return res.status(502).json({
-        error: 'SMS could not be delivered. Check the SMS gateway credentials, account balance, and DLT sender/template configuration, then try again.',
+        error: `SMS provider ${smsResult.provider} could not deliver the OTP${smsResult.error ? `: ${smsResult.error}` : '.'} Check the provider account balance and DLT sender/template configuration, then try again.`,
         provider: smsResult.provider,
       });
     }
@@ -699,6 +699,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
       isNewUser: !existingUser,
       provider: smsResult.provider,
       smsSent: true,
+      providerReference: smsResult.messageId,
       demoOtp: isDevFallback ? otp : undefined,
     });
   } catch (err: any) {
@@ -754,10 +755,8 @@ router.post('/phone/verify-otp', async (req: Request, res: Response) => {
 
     const isCacheMatch = cacheEntry && cacheEntry.otp === cleanOtp && cacheEntry.expiresAt > Date.now();
     const isDbMatch = user && user.resetOtp === cleanOtp && user.resetOtpExpires && user.resetOtpExpires.getTime() > Date.now();
-    const isDev = process.env.NODE_ENV !== 'production';
-    const isMasterMatch = isDev && cleanOtp === '123456';
 
-    if (!isCacheMatch && !isDbMatch && !isMasterMatch) {
+    if (!isCacheMatch && !isDbMatch) {
       return res.status(400).json({ error: 'Invalid or expired 6-digit OTP. Please request a new code.' });
     }
 

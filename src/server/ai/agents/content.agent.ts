@@ -1,6 +1,7 @@
 import { getAIProvider } from '../factory';
 import { ContentItem } from '../../../shared/types';
 import { SafetyService } from '../../services/safety.service';
+import { WalletBillingError } from '../../services/wallet.service';
 
 export interface CreateContentParams {
   businessId: string;
@@ -60,6 +61,7 @@ Output Schema (JSON):
         { maxTokens: 2500, temperature: 0.7, timeout: 15000 }
       );
     } catch (e) {
+      if (e instanceof WalletBillingError) throw e;
       console.warn('Content Agent generation fallback:', e);
       parsed = {
         title: `The Comprehensive Guide to ${params.topic} for ${params.industry}`,

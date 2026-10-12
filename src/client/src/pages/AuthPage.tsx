@@ -56,6 +56,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
   const [maskedPhone, setMaskedPhone] = useState('');
   const [rawPhone, setRawPhone] = useState('');
   const [smsProvider, setSmsProvider] = useState<string>('');
+  const [smsProviderReference, setSmsProviderReference] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState<boolean | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [sandboxCode, setSandboxCode] = useState<string | null>(null);
@@ -155,6 +156,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       return;
     }
 
+    setSandboxCode(null);
     setLoading(true);
     try {
       const fullPhone = `${countryCode}${cleanNum}`;
@@ -174,6 +176,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       setMaskedPhone(res.phone || `${countryCode} ${cleanNum.slice(0, 2)}••••••${cleanNum.slice(-2)}`);
       setRawPhone(fullPhone);
       setSmsProvider(res.provider || 'sms');
+      setSmsProviderReference(res.providerReference || null);
       setSmsSent(true);
 
       // FIX 4: demo OTP sirf development mein
@@ -238,8 +241,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
   // Fast Auto-fill for Developer Sandbox (sirf DEV mein use hota hai)
   const handleFillSandboxCode = () => {
-    const code = sandboxCode || '123456';
-    const digits = code.slice(0, 6).split('');
+    if (!sandboxCode) return;
+    const digits = sandboxCode.slice(0, 6).split('');
     setOtpDigits(digits);
     otpInputRefs.current[5]?.focus();
   };
@@ -798,15 +801,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>Enter 6-Digit OTP</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Gateway accepted
+                    {sandboxCode ? 'Development OTP' : 'Gateway accepted'}
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  The SMS gateway accepted the OTP request for{' '}
-                  <span className="font-bold text-slate-800 font-mono">{maskedPhone}</span>.
+                  {sandboxCode ? (
+                    <>Development mode is using a sandbox OTP for <span className="font-bold text-slate-800 font-mono">{maskedPhone}</span>; no SMS was sent.</>
+                  ) : (
+                    <>The SMS gateway accepted the OTP request for <span className="font-bold text-slate-800 font-mono">{maskedPhone}</span>.</>
+                  )}
                 </p>
                 <p className="text-[11px] text-amber-700 mt-1">
-                  Phone delivery is not confirmed yet. Check your SMS inbox and spam messages.
+                  {sandboxCode
+                    ? 'Use the development sandbox OTP button below to fill in the verification code.'
+                    : `Phone delivery is not confirmed yet. Check your SMS inbox and spam messages.${smsProviderReference ? ` Provider reference: ${smsProviderReference}.` : ''}`}
                 </p>
                 {(fullName || email) && (
                   <div className="mt-2 text-xs font-bold text-indigo-700 bg-indigo-50/70 border border-indigo-100 rounded-xl px-3 py-1.5 inline-flex items-center gap-1.5">

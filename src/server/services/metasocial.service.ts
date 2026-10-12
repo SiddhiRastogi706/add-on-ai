@@ -35,7 +35,8 @@ export class MetaSocialService {
   static async publishToFacebookPage(
     message: string,
     imageUrl?: string,
-    organizationId?: string
+    organizationId?: string,
+    mediaType: 'image' | 'video' = 'image'
   ): Promise<MetaPublishResult> {
     const config = this.getConfig(organizationId);
 
@@ -47,6 +48,26 @@ export class MetaSocialService {
     }
 
     try {
+      if (mediaType === 'video' && imageUrl) {
+        const endpoint = `https://graph.facebook.com/v19.0/${config.pageId}/videos`;
+        const res = await axios.post(
+          endpoint,
+          {
+            file_url: imageUrl,
+            description: message,
+            access_token: config.pageAccessToken,
+          },
+          { timeout: 30000 }
+        );
+        const postId = res.data?.id;
+        return {
+          success: true,
+          postId,
+          permalink: postId ? `https://facebook.com/${postId}` : undefined,
+          message: 'Successfully published video to Facebook Page',
+        };
+      }
+
       if (imageUrl) {
         // Publish Photo
         const endpoint = `https://graph.facebook.com/v19.0/${config.pageId}/photos`;
@@ -111,7 +132,8 @@ export class MetaSocialService {
   static async publishToInstagram(
     caption: string,
     imageUrl?: string,
-    organizationId?: string
+    organizationId?: string,
+    mediaType: 'image' | 'video' = 'image'
   ): Promise<MetaPublishResult> {
     if (!imageUrl) {
       return {
@@ -132,14 +154,14 @@ export class MetaSocialService {
     try {
       // Step 1: Create media container
       const containerEndpoint = `https://graph.facebook.com/v19.0/${config.igUserId}/media`;
+      const containerParams =
+        mediaType === 'video'
+          ? { media_type: 'REELS', video_url: imageUrl, caption, access_token: config.pageAccessToken }
+          : { image_url: imageUrl, caption, access_token: config.pageAccessToken };
       const containerRes = await axios.post(
         containerEndpoint,
-        {
-          image_url: imageUrl,
-          caption,
-          access_token: config.pageAccessToken,
-        },
-        { timeout: 10000 }
+        containerParams,
+        { timeout: 30000 }
       );
 
       const creationId = containerRes.data?.id;
@@ -148,6 +170,25 @@ export class MetaSocialService {
           success: false,
           message: 'Failed to create Instagram media container (no creation ID returned)',
         };
+      }
+
+      if (mediaType === 'video') {
+        let statusCode = '';
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const status = await axios.get(`https://graph.facebook.com/v19.0/${creationId}`, {
+            params: { fields: 'status_code', access_token: config.pageAccessToken },
+            timeout: 10000,
+          });
+          statusCode = status.data?.status_code || '';
+          if (statusCode === 'FINISHED') break;
+          if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+            return { success: false, message: `Instagram video processing failed (${statusCode}).` };
+          }
+        }
+        if (statusCode !== 'FINISHED') {
+          return { success: false, message: 'Instagram video is still processing. Please try publishing again shortly.' };
+        }
       }
 
       // Step 2: Publish media container
@@ -168,7 +209,7 @@ export class MetaSocialService {
         success: true,
         postId: publishedPostId,
         permalink,
-        message: 'Successfully published post to Instagram',
+        message: mediaType === 'video' ? 'Successfully published Reel to Instagram' : 'Successfully published post to Instagram',
       };
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message || 'Unknown Instagram Graph API error';
@@ -239,4 +280,3 @@ export class MetaSocialService {
     }
   }
 }
-

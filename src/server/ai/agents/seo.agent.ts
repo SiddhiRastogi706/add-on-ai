@@ -1,4 +1,5 @@
 import { getAIProvider } from '../factory';
+import { WalletBillingError } from '../../services/wallet.service';
 import { CrawlerResult, SiteCrawlResult, SeoAuditReport, KeywordData, SeoIssue } from '../../../shared/types';
 
 export class SeoAgent {
@@ -502,6 +503,7 @@ Return JSON array with this schema:
         }));
       }
     } catch (e) {
+      if (e instanceof WalletBillingError) throw e;
       console.warn('SEO Keyword generation fallback:', e);
     }
 

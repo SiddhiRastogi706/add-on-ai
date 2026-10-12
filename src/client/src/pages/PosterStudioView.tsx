@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../store/AuthContext';
 import {
   Sparkles,
@@ -12,6 +12,8 @@ import {
   Wand2,
   RefreshCw,
   Image as ImageIcon,
+  Camera,
+  Film,
   Layers,
   Check,
   Zap,
@@ -139,6 +141,14 @@ export const PosterStudioView: React.FC = () => {
   const [aiImageUrl, setAiImageUrl] = useState(
     'https://image.pollinations.ai/prompt/luxury%20festive%20Diwali%20fashion%20celebration%20with%20glowing%20warm%20golden%20sparkles%20cinematic%208k%20commercial%20advertising?width=1080&height=1080&model=flux&enhance=true&nologo=true&seed=481920'
   );
+  const [studioMode, setStudioMode] = useState<'image' | 'video'>('image');
+  const [galleryMediaType, setGalleryMediaType] = useState<'image' | 'video' | null>(null);
+  const [galleryPreviewUrl, setGalleryPreviewUrl] = useState<string | null>(null);
+  const [galleryMediaUrl, setGalleryMediaUrl] = useState<string | null>(null);
+  const [galleryMediaName, setGalleryMediaName] = useState<string | null>(null);
+  const [isUploadingGalleryMedia, setIsUploadingGalleryMedia] = useState(false);
+  const [galleryMediaError, setGalleryMediaError] = useState<string | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [imageSearchPrompt, setImageSearchPrompt] = useState('luxury festive celebration background commercial advertising');
   const [aiRationale, setAiRationale] = useState('High CTR festive theme tuned for maximum consumer urgency & festival celebrations.');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -159,6 +169,54 @@ export const PosterStudioView: React.FC = () => {
   // Video Teaser & Sound State
   const [isVideoTeaser, setIsVideoTeaser] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (galleryPreviewUrl) URL.revokeObjectURL(galleryPreviewUrl);
+    };
+  }, [galleryPreviewUrl]);
+
+  const handleGalleryMediaChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const mediaType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
+    if (!mediaType) {
+      setGalleryMediaError('Choose a supported image or video from your gallery.');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setGalleryPreviewUrl(previewUrl);
+    setGalleryMediaUrl(null);
+    setGalleryMediaName(file.name);
+    setGalleryMediaType(mediaType);
+    setStudioMode(mediaType);
+    if (mediaType === 'image') setBackgroundMode('ai_photo');
+    setGalleryMediaError(null);
+    setIsUploadingGalleryMedia(true);
+
+    try {
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error('Choose a file that is 50 MB or smaller.');
+      }
+      const uploaded = await ApiClient.uploadSocialMedia(file);
+      setGalleryMediaUrl(uploaded.url);
+    } catch (error: any) {
+      setGalleryMediaError(error.message || 'Media upload failed. The local preview is still available.');
+    } finally {
+      setIsUploadingGalleryMedia(false);
+    }
+  };
+
+  const clearGalleryMedia = () => {
+    setGalleryPreviewUrl(null);
+    setGalleryMediaUrl(null);
+    setGalleryMediaName(null);
+    setGalleryMediaType(null);
+    setGalleryMediaError(null);
+  };
 
   // Synthesizes commercial soundbed with Web Audio API (zero external mp3 needed)
   const playCommercialSoundbed = () => {
@@ -284,6 +342,8 @@ export const PosterStudioView: React.FC = () => {
         // Update Image URL
         if (res.aiImageUrl) {
           setAiImageUrl(res.aiImageUrl);
+          clearGalleryMedia();
+          setStudioMode('image');
         }
 
         // Play audio if in video teaser mode
@@ -300,6 +360,8 @@ export const PosterStudioView: React.FC = () => {
 
   // Reroll image with new seed
   const handleRegenerateImage = () => {
+    clearGalleryMedia();
+    setStudioMode('image');
     setIsImageLoading(true);
     const newSeed = Math.floor(Math.random() * 999999);
     let w = 1080;
@@ -482,7 +544,7 @@ export const PosterStudioView: React.FC = () => {
       link.click();
     };
 
-    if (backgroundMode === 'ai_photo' && aiImageUrl) {
+    if (backgroundMode === 'ai_photo' && (galleryPreviewUrl || aiImageUrl)) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
@@ -497,7 +559,7 @@ export const PosterStudioView: React.FC = () => {
         ctx.fillRect(0, 0, width, height);
         renderPosterContent();
       };
-      img.src = aiImageUrl;
+      img.src = galleryPreviewUrl || aiImageUrl;
     } else {
       const bgGrad = ctx.createLinearGradient(0, 0, width, height);
       bgGrad.addColorStop(0, selectedTheme.gradientColors[0]);
@@ -530,8 +592,8 @@ export const PosterStudioView: React.FC = () => {
 
   <!-- Background -->
   ${
-    backgroundMode === 'ai_photo' && aiImageUrl
-      ? `<image href="${aiImageUrl}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" />`
+  backgroundMode === 'ai_photo' && (galleryMediaUrl || aiImageUrl)
+    ? `<image href="${galleryMediaUrl || aiImageUrl}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" />`
       : `<rect width="${width}" height="${height}" fill="url(#themeGrad)" />`
   }
   <rect width="${width}" height="${height}" fill="rgba(15, 23, 42, 0.45)" />
@@ -605,7 +667,7 @@ export const PosterStudioView: React.FC = () => {
 
             {/* Action Bar: Video Teaser Sound Toggle */}
             <div className="flex items-center gap-2 flex-wrap">
-              <button
+              {studioMode === 'image' && <button
                 onClick={() => {
                   const next = !isVideoTeaser;
                   setIsVideoTeaser(next);
@@ -620,7 +682,7 @@ export const PosterStudioView: React.FC = () => {
               >
                 <span>🎬</span>
                 <span>Video Teaser {isVideoTeaser ? '(ON 🔊)' : '(OFF)'}</span>
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -710,8 +772,86 @@ export const PosterStudioView: React.FC = () => {
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-brand-600" /> 1. Format &amp; Background Mode
+                <Sliders className="w-3.5 h-3.5 text-brand-600" /> 1. Media Format &amp; Background
               </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (galleryMediaType === 'video') clearGalleryMedia();
+                  setStudioMode('image');
+                }}
+                className={`p-3 rounded-2xl border flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                  studioMode === 'image'
+                    ? 'border-brand-500 bg-brand-50 text-brand-700 ring-2 ring-brand-200'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Image Poster</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (galleryMediaType === 'image') clearGalleryMedia();
+                  setStudioMode('video');
+                }}
+                className={`p-3 rounded-2xl border flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                  studioMode === 'video'
+                    ? 'border-rose-500 bg-rose-50 text-rose-700 ring-2 ring-rose-200'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <Film className="w-4 h-4" />
+                <span>Video</span>
+              </button>
+            </div>
+
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+              className="hidden"
+              onChange={handleGalleryMediaChange}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={isUploadingGalleryMedia}
+                aria-label="Choose an image or video from your gallery"
+                className="w-11 h-11 rounded-xl bg-brand-50 hover:bg-brand-100 border border-brand-200 text-brand-700 flex items-center justify-center transition-all disabled:opacity-60"
+                title="Choose an image or video from your gallery"
+              >
+                {isUploadingGalleryMedia ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-5 h-5" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-700">
+                  {isUploadingGalleryMedia
+                    ? 'Uploading selected media...'
+                    : galleryMediaName || `Choose ${studioMode === 'image' ? 'an image' : 'a video'} from gallery`}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  JPEG, PNG, WebP, GIF, MP4, MOV, or WebM · Up to 50 MB
+                </p>
+              </div>
+              {galleryMediaName && (
+                <button
+                  type="button"
+                  onClick={clearGalleryMedia}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Clear
+                </button>
+              )}
+              {galleryMediaUrl && <Check className="w-4 h-4 text-emerald-600" aria-label="Media uploaded" />}
+              {galleryMediaError && (
+                <p role="alert" className="w-full text-[11px] font-semibold text-rose-600">
+                  {galleryMediaError}
+                </p>
+              )}
             </div>
 
             {/* Aspect Ratio Buttons */}
@@ -911,7 +1051,7 @@ export const PosterStudioView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {isVideoTeaser && (
+              {studioMode === 'image' && isVideoTeaser && (
                 <button
                   onClick={playCommercialSoundbed}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -934,7 +1074,7 @@ export const PosterStudioView: React.FC = () => {
                   )}
                 </button>
               )}
-              {backgroundMode === 'ai_photo' && (
+              {studioMode === 'image' && backgroundMode === 'ai_photo' && (
                 <button
                   onClick={handleRegenerateImage}
                   disabled={isImageLoading}
@@ -952,20 +1092,24 @@ export const PosterStudioView: React.FC = () => {
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
               </button>
-              <button
-                onClick={handleDownloadSvg}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-brand-600" />
-                <span>SVG</span>
-              </button>
-              <button
-                onClick={handleDownloadPng}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download PNG</span>
-              </button>
+              {studioMode === 'image' && (
+                <>
+                  <button
+                    onClick={handleDownloadSvg}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-brand-600" />
+                    <span>SVG</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadPng}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PNG</span>
+                  </button>
+                </>
+              )}
               <button
                 onClick={handleScheduleToCalendar}
                 className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
@@ -988,6 +1132,30 @@ export const PosterStudioView: React.FC = () => {
                   : 'w-[440px] h-[247px] sm:w-[560px] sm:h-[315px] rounded-2xl'
               }`}
             >
+              {studioMode === 'video' ? (
+                galleryPreviewUrl && galleryMediaType === 'video' ? (
+                  <video
+                    src={galleryPreviewUrl}
+                    controls
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-contain bg-black"
+                    aria-label="Selected gallery video preview"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 text-white">
+                    <Film className="w-10 h-10 text-rose-400" />
+                    <p className="text-sm font-bold">Choose a video from your gallery</p>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold"
+                    >
+                      Select Video
+                    </button>
+                  </div>
+                )
+              ) : (
+                <>
               {/* Layer 0: Video Teaser REC Badge */}
               {isVideoTeaser && (
                 <div className="absolute top-3.5 right-3.5 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-black tracking-wide shadow-md backdrop-blur-sm">
@@ -997,11 +1165,11 @@ export const PosterStudioView: React.FC = () => {
               )}
 
               {/* Layer 1: Background (AI Image or Gradient) */}
-              {backgroundMode === 'ai_photo' && aiImageUrl ? (
+              {backgroundMode === 'ai_photo' && (galleryPreviewUrl || aiImageUrl) ? (
                 <>
                   <img
-                    src={aiImageUrl}
-                    alt="AI Poster Background"
+                    src={galleryPreviewUrl || aiImageUrl}
+                    alt={galleryMediaName ? 'Selected gallery photo background' : 'AI poster background'}
                     onLoad={() => setIsImageLoading(false)}
                     className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-all duration-1000 ${
                       isVideoTeaser ? 'scale-110 motion-safe:animate-pulse duration-[5000ms]' : 'scale-100'
@@ -1062,6 +1230,8 @@ export const PosterStudioView: React.FC = () => {
                   {brandSignature}
                 </div>
               </div>
+                </>
+              )}
             </div>
           </div>
 

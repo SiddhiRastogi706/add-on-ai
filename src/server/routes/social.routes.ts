@@ -1,4 +1,6 @@
 import { Router, Response } from 'express';
+import express from 'express';
+import { randomUUID } from 'crypto';
 import axios from 'axios';
 import { prisma } from '../db';
 import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
@@ -6,8 +8,46 @@ import { getTenantBusiness } from '../middleware/tenant';
 import { SocialAgent } from '../ai/agents/social.agent';
 import { SocialPublishService } from '../services/social-publish.service';
 import { MetaSocialService } from '../services/metasocial.service';
+import { StorageService } from '../services/storage.service';
 
 const router = Router();
+const galleryMediaTypes: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+};
+
+router.post(
+  '/media',
+  optionalAuthMiddleware,
+  express.raw({ type: Object.keys(galleryMediaTypes), limit: '50mb' }),
+  async (req: AuthRequest, res: Response) => {
+    const contentType = req.header('content-type')?.split(';')[0].trim().toLowerCase() || '';
+    const extension = galleryMediaTypes[contentType];
+    if (!extension) {
+      return res.status(415).json({ error: 'Choose a JPEG, PNG, WebP, GIF, MP4, MOV, or WebM file.' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'The selected media file is empty or could not be read.' });
+    }
+
+    const organizationId = req.user?.organizationId;
+    const key = StorageService.getNamespacedKey(organizationId, 'social-media', `${randomUUID()}.${extension}`);
+    const upload = await StorageService.uploadBuffer(key, req.body, contentType, organizationId);
+    if (!upload.success || !upload.url) {
+      return res.status(503).json({ error: upload.error || 'Media storage is unavailable. Please try again later.' });
+    }
+
+    return res.status(201).json({
+      url: upload.url,
+      mediaType: contentType.startsWith('video/') ? 'video' : 'image',
+    });
+  }
+);
 
 async function resolveBusiness(req: AuthRequest, businessId?: string) {
   let biz = await getTenantBusiness(req, businessId);
@@ -506,12 +546,15 @@ router.post('/verify-facebook', optionalAuthMiddleware, async (req: AuthRequest,
 // 1-Click Direct Publish to Facebook Page & Instagram with Real Graph API
 router.post('/publish-direct', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { businessId, channels = ['facebook'], caption, imageUrl, headline, cta } = req.body;
+    const { businessId, channels = ['facebook'], caption, imageUrl, mediaType = 'image', headline, cta } = req.body;
     const organizationId = req.user?.organizationId;
     const biz = await getTenantBusiness(req, businessId);
 
     if (!caption) {
       return res.status(400).json({ error: 'Caption or post content is required' });
+    }
+    if (!['image', 'video'].includes(mediaType)) {
+      return res.status(400).json({ error: 'Media type must be image or video.' });
     }
 
     const results: any[] = [];
@@ -519,7 +562,7 @@ router.post('/publish-direct', optionalAuthMiddleware, async (req: AuthRequest, 
 
     // 1. Facebook Publishing
     if (channels.includes('facebook') || channels.includes('meta')) {
-      const fbResult = await MetaSocialService.publishToFacebookPage(caption, imageUrl, organizationId);
+      const fbResult = await MetaSocialService.publishToFacebookPage(caption, imageUrl, organizationId, mediaType);
       if (fbResult.success) {
         results.push({
           channel: 'facebook',
@@ -558,7 +601,7 @@ router.post('/publish-direct', optionalAuthMiddleware, async (req: AuthRequest, 
     // 2. Instagram Publishing
     if (channels.includes('instagram')) {
       if (imageUrl) {
-        const igResult = await MetaSocialService.publishToInstagram(caption, imageUrl, organizationId);
+        const igResult = await MetaSocialService.publishToInstagram(caption, imageUrl, organizationId, mediaType);
         if (igResult.success) {
           results.push({
             channel: 'instagram',
@@ -591,7 +634,7 @@ router.post('/publish-direct', optionalAuthMiddleware, async (req: AuthRequest, 
         data: {
           businessId: biz.id,
           platform: channels.join(',').toUpperCase(),
-          contentType: 'IMAGE_POST',
+          contentType: mediaType === 'video' ? 'VIDEO_POST' : 'IMAGE_POST',
           topic: headline || 'Direct Client Campaign',
           caption,
           creativeConcept: 'Commercial Ad Creative',

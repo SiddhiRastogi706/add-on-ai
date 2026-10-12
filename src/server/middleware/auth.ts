@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { walletBillingContext } from '../services/wallet-billing-context';
 
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing. Server refusing to start in production.');
@@ -51,7 +52,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     }
 
     req.user = decoded;
-    next();
+    walletBillingContext.run({ organizationId: decoded.organizationId }, next);
   } catch (err: any) {
     return res.status(401).json({
       error: 'Unauthorized',
@@ -77,6 +78,7 @@ export function optionalAuthMiddleware(req: AuthRequest, res: Response, next: Ne
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       if (decoded.id && decoded.organizationId) {
         req.user = decoded;
+        return walletBillingContext.run({ organizationId: decoded.organizationId }, next);
       }
     } catch {
       // Ignore token decoding failure in optional mode
@@ -85,4 +87,3 @@ export function optionalAuthMiddleware(req: AuthRequest, res: Response, next: Ne
 
   next();
 }
-

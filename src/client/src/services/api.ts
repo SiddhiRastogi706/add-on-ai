@@ -34,8 +34,28 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.message || `API error ${response.status}`);
+      const responseText = await response.text();
+      let errorMessage: string | undefined;
+
+      if (responseText) {
+        try {
+          const errBody = JSON.parse(responseText);
+          errorMessage =
+            typeof errBody === 'string'
+              ? errBody
+              : typeof errBody.error === 'string'
+                ? errBody.error
+                : typeof errBody.message === 'string'
+                  ? errBody.message
+                  : undefined;
+        } catch {
+          if (!response.headers.get('content-type')?.includes('text/html')) {
+            errorMessage = responseText.trim().slice(0, 300) || undefined;
+          }
+        }
+      }
+
+      throw new Error(errorMessage || `API error ${response.status}${response.statusText ? ` (${response.statusText})` : ''}`);
     }
 
     return response.json();
@@ -126,9 +146,28 @@ export class ApiClient {
     channels: string[];
     caption: string;
     imageUrl?: string;
+    mediaType?: 'image' | 'video';
     headline?: string;
     cta?: string;
   }) => this.request<any>('/social/publish-direct', { method: 'POST', body: JSON.stringify(data) });
+  static uploadSocialMedia = async (file: File): Promise<{ url: string; mediaType: 'image' | 'video' }> => {
+    const token = this.getToken();
+    const response = await fetch(`${API_BASE}/social/media`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || errBody.message || `Media upload failed (${response.status})`);
+    }
+
+    return response.json();
+  };
   static verifyFacebookConnection = (data?: { pageId?: string; accessToken?: string; adAccountId?: string }) =>
     this.request<any>('/social/verify-facebook', { method: 'POST', body: JSON.stringify(data || {}) });
   static classifyComment = (
@@ -252,6 +291,7 @@ export class ApiClient {
   static createOrder = (data: {
     planId: string;
     billingCycle?: 'monthly' | 'yearly';
+    walletAmount?: number;
     customerName?: string;
     customerEmail?: string;
     customerPhone?: string;
@@ -274,6 +314,7 @@ export class ApiClient {
   }) => this.request<any>('/payments/verify', { method: 'POST', body: JSON.stringify(data) });
   static verifyCashfreePayment = (orderId: string) =>
     this.request<any>('/payments/cashfree/verify', { method: 'POST', body: JSON.stringify({ order_id: orderId }) });
+  static getWallet = () => this.request<any>('/wallet');
 
   // Email Report
   static emailReport = (id: string, to?: string) =>

@@ -12,8 +12,10 @@ import {
   Sparkles,
   Download,
   Menu,
+  Wallet,
 } from 'lucide-react';
 import { ApiClient } from '../../services/api';
+import { WalletTopUpModal } from './WalletTopUpModal';
 
 interface HeaderProps {
   onOpenNotifications?: () => void;
@@ -29,8 +31,26 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, business, refreshBusiness, setCurrentView } = useAuth();
 
   const [showEmergencyModal, setShowEmergencyModal] = React.useState(false);
+  const [showWalletModal, setShowWalletModal] = React.useState(false);
+  const [walletBalancePaise, setWalletBalancePaise] = React.useState<number | null>(null);
   const [emergencyReason, setEmergencyReason] = React.useState('Manual safety override by administrator');
   const [stopping, setStopping] = React.useState(false);
+
+  const refreshWallet = React.useCallback(async () => {
+    if (!user) return;
+    try {
+      const wallet = await ApiClient.getWallet();
+      setWalletBalancePaise(wallet.balancePaise);
+    } catch (error) {
+      console.error('Wallet balance refresh failed:', error);
+    }
+  }, [user?.id]);
+
+  React.useEffect(() => {
+    void refreshWallet();
+    const interval = window.setInterval(() => void refreshWallet(), 30000);
+    return () => window.clearInterval(interval);
+  }, [refreshWallet]);
 
   const handleConfirmEmergencyStop = async () => {
     if (!business) return;
@@ -106,6 +126,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Actions & User Menu */}
         <div className="flex items-center gap-3">
+          {user && (
+            <button
+              type="button"
+              onClick={() => setShowWalletModal(true)}
+              title="Wallet balance and top-up"
+              className="flex max-w-[115px] items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100 sm:max-w-none sm:px-3"
+            >
+              <Wallet className="h-4 w-4 shrink-0" />
+              <span className="truncate">{walletBalancePaise === null ? 'Wallet' : `₹${(walletBalancePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}</span>
+            </button>
+          )}
+
           {/* Emergency Stop Toggle Button */}
           <button
             onClick={() => {
@@ -164,6 +196,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </header>
+
+      <WalletTopUpModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+        onSuccess={refreshWallet}
+      />
 
       {/* Emergency Stop Confirmation Modal */}
       {showEmergencyModal && (
