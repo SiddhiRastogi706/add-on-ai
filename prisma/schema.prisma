@@ -1,14 +1,14 @@
 // Prisma Schema for MarketMind AI
-// The active Prisma schema uses the local SQLite datasource.
+// The local development schema uses SQLite for zero-configuration setup.
 
 generator client {
   provider = "prisma-client-js"
 }
 
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
 
 model Organization {
   id              String         @id @default(cuid())

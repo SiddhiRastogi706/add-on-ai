@@ -45,3 +45,14 @@ export const authLimiter = rateLimit({
     message: 'Too many authentication attempts. Please try again in a few moments.',
   },
 });
+
+export const openStreetMapSearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Too Many Requests',
+    message: 'OpenStreetMap searches are limited to 10 per 15 minutes. Please try again later.',
+  },
+});

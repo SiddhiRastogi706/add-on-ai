@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import axios from 'axios';
+import { randomBytes } from 'crypto';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest, JWT_SECRET } from '../middleware/auth';
 import { SmsService } from '../services/sms.service';
@@ -274,37 +276,96 @@ router.post('/demo-login', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/google-login', async (req: Request, res: Response) => {
+router.get('/google-config', (_req: Request, res: Response) => {
+  res.json({ clientId: process.env.GOOGLE_CLIENT_ID || null });
+});
+
+router.post('/google-login', authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, name } = req.body;
-    const targetEmail = email || 'skyexpressroad@gmail.com';
-    let user = await prisma.user.findFirst({
+    const { credential } = req.body as { credential?: string };
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({ error: 'Google sign-in is not configured on this server.' });
+    }
+    if (!credential || typeof credential !== 'string' || credential.length > 10000) {
+      return res.status(400).json({ error: 'A valid Google credential is required.' });
+    }
+
+    const verification = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+      params: { id_token: credential },
+      timeout: 10000,
+    });
+    const claims = verification.data as {
+      aud?: string;
+      email?: string;
+      email_verified?: string | boolean;
+      name?: string;
+      sub?: string;
+      iss?: string;
+    };
+
+    if (
+      claims.aud !== clientId ||
+      typeof claims.sub !== 'string' ||
+      typeof claims.email !== 'string' ||
+      (claims.iss !== undefined && !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss)) ||
+      !(claims.email_verified === true || claims.email_verified === 'true')
+    ) {
+      return res.status(401).json({ error: 'Google could not verify this account. Please try again.' });
+    }
+
+    const targetEmail = claims.email.trim().toLowerCase();
+    const verifiedName = claims.name?.trim() || targetEmail.split('@')[0];
+    let user = await prisma.user.findUnique({
       where: { email: targetEmail },
       include: { organization: true },
     });
 
     if (!user) {
-      let org = await prisma.organization.findFirst();
-      if (!org) {
-        org = await prisma.organization.create({
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 10);
+      try {
+        const organization = await prisma.organization.create({
           data: {
-            name: `${name || 'SkyExpress Roadlines'}'s Workspace`,
+            name: `${verifiedName}'s Workspace`,
             plan: 'growth',
             aiTokensUsed: 0,
             aiTokensLimit: 600000,
+            users: {
+              create: {
+                email: targetEmail,
+                passwordHash,
+                name: verifiedName,
+                role: 'ADMIN',
+              },
+            },
+            businesses: {
+              create: {
+                name: `${verifiedName}'s Business`,
+                websiteUrl: 'https://yourwebsite.com',
+                industry: 'Professional Services',
+                description: 'Digital growth business profile for your company.',
+                productsAndServices: JSON.stringify(['Core Offer', 'Lead Generation', 'Customer Support']),
+                targetAudience: 'Prospective customers and decision-makers in our market',
+                targetLocations: JSON.stringify(['Local Market', 'Regional Market', 'Online']),
+                marketingGoals: JSON.stringify(['Generate Leads', 'Increase Traffic', 'Improve Brand Awareness']),
+                brandColors: JSON.stringify({ primary: '#2563EB', secondary: '#10B981', accent: '#F59E0B' }),
+                brandTone: 'Professional, Trustworthy & Efficient',
+                dailyBudgetLimit: 5000,
+                currency: 'INR',
+              },
+            },
           },
+          include: { users: true },
         });
+        user = { ...organization.users[0], organization };
+      } catch (error) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: targetEmail },
+          include: { organization: true },
+        });
+        if (!existingUser) throw error;
+        user = existingUser;
       }
-      user = await prisma.user.create({
-        data: {
-          email: targetEmail,
-          passwordHash: await bcrypt.hash('google_oauth_authorized', 10),
-          name: name || 'SkyExpress Roadlines',
-          role: 'ADMIN',
-          organizationId: org.id,
-        },
-        include: { organization: true },
-      });
     }
 
     const token = jwt.sign(
@@ -318,7 +379,7 @@ router.post('/google-login', async (req: Request, res: Response) => {
     EmailService.sendLoginSuccess(
       user.email,
       {
-        name: user.name || name || 'Founder',
+        name: user.name || verifiedName,
         ip: clientIp,
         loginMethod: 'Google OAuth 2.0 Single Sign-On',
         loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'medium' }),
@@ -336,11 +397,14 @@ router.post('/google-login', async (req: Request, res: Response) => {
         role: user.role,
         organizationId: user.organizationId,
       },
-      provider: 'google_oauth_2.0',
-      clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 16)}...` : undefined,
+      provider: 'google',
     });
   } catch (err: any) {
-    res.status(500).json({ error: 'Failed to process Google sign-in: ' + err.message });
+    if (axios.isAxiosError(err) && err.response?.status === 400) {
+      return res.status(401).json({ error: 'Google could not verify this account. Please try again.' });
+    }
+    console.error('[Auth] Google sign-in failed:', err.message);
+    res.status(502).json({ error: 'Google sign-in could not be verified right now. Please try again.' });
   }
 });
 

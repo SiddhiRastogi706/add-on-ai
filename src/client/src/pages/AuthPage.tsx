@@ -20,12 +20,45 @@ import {
   EyeOff,
   Flame,
   PartyPopper,
-  X
 } from 'lucide-react';
+
+interface GoogleCredentialResponse {
+  credential: string;
+}
+
+let initializedGoogleClientId: string | null = null;
+let activeGoogleCredentialHandler: ((response: GoogleCredentialResponse) => void) | null = null;
+
+interface GoogleIdentityServices {
+  accounts: {
+    id: {
+      initialize: (options: {
+        client_id: string;
+        callback: (response: GoogleCredentialResponse) => void;
+        auto_select: boolean;
+        cancel_on_tap_outside: boolean;
+      }) => void;
+      renderButton: (element: HTMLElement, options: {
+        type: 'standard';
+        theme: 'outline';
+        size: 'large';
+        text: 'continue_with';
+        shape: 'pill';
+        width: number;
+      }) => void;
+    };
+  };
+}
+
+declare global {
+  interface Window {
+    google?: GoogleIdentityServices;
+  }
+}
 
 interface AuthPageProps {
   initialMode?: 'login' | 'signup' | 'admin';
-  onSuccess: () => void;
+  onSuccess: (user?: { id: string; role: string }) => void;
   onBack?: () => void;
 }
 
@@ -63,26 +96,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
   // Status & Feedback
   const [loading, setLoading] = useState(false);
+  const [googleButtonLoading, setGoogleButtonLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  // Google Account Chooser Modal State
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleSigningInEmail, setGoogleSigningInEmail] = useState<string | null>(null);
-  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
-  const [customGoogleName, setCustomGoogleName] = useState('');
-  const [showCustomGoogleInput, setShowCustomGoogleInput] = useState(false);
-
-  // FIX 3: simple init, koi "siddhi" filter hack nahi
-  const [googleAccounts, setGoogleAccounts] = useState<Array<{ name: string; email: string; color: string }>>(() => {
-    try {
-      const saved = localStorage.getItem('addon_google_accounts');
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed.filter((a: any) => a?.email) : [];
-    } catch {
-      return [];
-    }
-  });
 
   // FIX 1: admin credentials ab hardcoded nahi hain
   const [adminEmail, setAdminEmail] = useState('');
@@ -94,8 +110,122 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
 
   // Input Refs for 6-Digit OTP auto-advance
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
 
   const { login } = useAuth();
+
+  const handleGoogleCredential = async (response: GoogleCredentialResponse) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await ApiClient.googleLogin(response.credential);
+      await login(result.token, result.user);
+      onSuccess(result.user);
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdminMode) {
+      setGoogleButtonLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let initialized = false;
+    setGoogleButtonLoading(true);
+
+    const renderGoogleButton = (clientId: string) => {
+      const identityApi = window.google?.accounts?.id;
+      if (cancelled || initialized || !googleButtonRef.current || !identityApi) return;
+      initialized = true;
+      activeGoogleCredentialHandler = handleGoogleCredential;
+      if (initializedGoogleClientId !== clientId) {
+        identityApi.initialize({
+          client_id: clientId,
+          callback: (response) => void activeGoogleCredentialHandler?.(response),
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        initializedGoogleClientId = clientId;
+      }
+      identityApi.renderButton(googleButtonRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'pill',
+        width: Math.min(400, Math.floor(googleButtonRef.current.clientWidth)),
+      });
+      setError(null);
+      setGoogleButtonLoading(false);
+    };
+
+    void ApiClient.getGoogleAuthConfig()
+      .then(({ clientId }) => {
+        if (cancelled) return;
+        if (!clientId) {
+          setGoogleButtonLoading(false);
+          setError('Google sign-in is not configured. Please use phone OTP or contact support.');
+          return;
+        }
+
+        const existingScript = document.querySelector<HTMLScriptElement>('script[data-google-identity-services]');
+        if (window.google?.accounts?.id) {
+          renderGoogleButton(clientId);
+          return;
+        }
+        if (existingScript) {
+          const onLoad = () => renderGoogleButton(clientId);
+          const onError = () => {
+            if (!cancelled) {
+              setGoogleButtonLoading(false);
+              setError('Could not load Google sign-in. Check your internet connection and retry.');
+            }
+          };
+          if (existingScript.dataset.loaded === 'true') {
+            renderGoogleButton(clientId);
+          } else {
+            existingScript.addEventListener('load', onLoad, { once: true });
+            existingScript.addEventListener('error', onError, { once: true });
+          }
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.dataset.googleIdentityServices = 'true';
+        script.onload = () => {
+          script.dataset.loaded = 'true';
+          renderGoogleButton(clientId);
+        };
+        script.onerror = () => {
+          if (!cancelled) {
+            setGoogleButtonLoading(false);
+            setError('Could not load Google sign-in. Check your internet connection and retry.');
+          }
+        };
+        document.head.appendChild(script);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setGoogleButtonLoading(false);
+          setError(err.message || 'Could not initialize Google sign-in.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (activeGoogleCredentialHandler === handleGoogleCredential) {
+        activeGoogleCredentialHandler = null;
+      }
+    };
+  }, [isAdminMode]);
 
   // Handle countdown timer for OTP resend
   useEffect(() => {
@@ -226,7 +356,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       if (res.token && res.user) {
         await login(res.token, res.user);
         setTimeout(() => {
-          onSuccess();
+          onSuccess(res.user);
         }, 500);
       } else {
         throw new Error('Verification succeeded but failed to issue session token.');
@@ -247,64 +377,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     otpInputRefs.current[5]?.focus();
   };
 
-  // FIX 2: Google sign-in abhi sirf DEV mein (production mein fake login band)
-  const handleGoogleSignIn = () => {
-    if (!import.meta.env.DEV) {
-      setError('Google sign-in is currently unavailable. Please use mobile OTP.');
-      return;
-    }
-    setError(null);
-    setShowGoogleModal(true);
-    if (googleAccounts.length === 0) {
-      setShowCustomGoogleInput(true);
-    }
-  };
-
-  // Remove an account from this browser device
-  const handleRemoveGoogleAccount = (e: React.MouseEvent, emailToRemove: string) => {
-    e.stopPropagation();
-    const updated = googleAccounts.filter(
-      (a) => a.email.toLowerCase() !== emailToRemove.toLowerCase()
-    );
-    setGoogleAccounts(updated);
-    try {
-      localStorage.setItem('addon_google_accounts', JSON.stringify(updated));
-    } catch {}
-    if (updated.length === 0) {
-      setShowCustomGoogleInput(true);
-    }
-  };
-
-  // Select and Authenticate with a Google Account (DEV only, see handleGoogleSignIn)
-  const handleSelectGoogleAccount = async (accountEmail: string, accountName: string) => {
-    if (!import.meta.env.DEV) return;
-    setError(null);
-    setGoogleSigningInEmail(accountEmail);
-    try {
-      const palette = ['bg-[#4285F4]', 'bg-[#EA4335]', 'bg-[#FBBC05]', 'bg-[#34A853]', 'bg-[#673AB7]', 'bg-[#00897B]'];
-      const charSum = accountEmail.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-      const chosenColor = palette[Math.abs(charSum) % palette.length];
-
-      const updated = [
-        { name: accountName, email: accountEmail, color: chosenColor },
-        ...googleAccounts.filter((a) => a.email.toLowerCase() !== accountEmail.toLowerCase()),
-      ];
-      setGoogleAccounts(updated);
-      try {
-        localStorage.setItem('addon_google_accounts', JSON.stringify(updated.slice(0, 5)));
-      } catch {}
-
-      const res = await ApiClient.googleLogin({ email: accountEmail, name: accountName });
-      await login(res.token, res.user);
-      setShowGoogleModal(false);
-      onSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Google authentication failed');
-    } finally {
-      setGoogleSigningInEmail(null);
-    }
-  };
-
   // Demo Login (abhi UI mein use nahi ho raha)
   const handleDemoSignIn = async () => {
     setError(null);
@@ -312,7 +384,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     try {
       const res = await ApiClient.demoLogin();
       await login(res.token, res.user);
-      onSuccess();
+      onSuccess(res.user);
     } catch (err: any) {
       setError(err.message || 'Demo login failed');
     } finally {
@@ -330,7 +402,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
     try {
       const res = await ApiClient.adminLogin({ email: adminEmail, password: adminPassword });
       await login(res.token, res.user);
-      onSuccess();
+      onSuccess(res.user);
     } catch (err: any) {
       setError(err.message || 'Administrator authentication failed');
     } finally {
@@ -766,20 +838,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
                 </div>
 
                 {/* Google Sign In Button */}
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="w-full py-3 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold transition-all shadow-xs flex items-center justify-center gap-3 group hover:border-slate-300 cursor-pointer"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                  <span>Continue with Google</span>
-                </button>
+                <div className="relative flex min-h-12 w-full items-center justify-center">
+                  {googleButtonLoading && (
+                    <span className="absolute h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                  )}
+                  <div ref={googleButtonRef} className={googleButtonLoading ? 'invisible' : 'flex w-full justify-center'} />
+                </div>
               </form>
             </div>
           ) : (
@@ -900,175 +964,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
         </div>
       </div>
 
-      {/* Google Account Chooser Modal (DEV only, since handleGoogleSignIn blocks it in production) */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-          <div className="relative w-full max-w-md my-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-left animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="p-5 sm:p-6 pb-4 border-b border-slate-100 flex items-start justify-between shrink-0">
-              <div className="space-y-1">
-                <svg className="w-6 h-6 mb-2" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                <h3 className="text-2xl font-semibold text-slate-900 tracking-tight">Choose an account</h3>
-                <p className="text-xs text-slate-500">
-                  to continue to <strong className="text-blue-600 font-bold">Addon AI</strong>
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGoogleModal(false);
-                  setShowCustomGoogleInput(false);
-                }}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Account List */}
-            <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto">
-              {googleAccounts.map((acc, idx) => {
-                const isCurrent = googleSigningInEmail === acc.email;
-                return (
-                  <div
-                    key={idx}
-                    className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                    onClick={() => handleSelectGoogleAccount(acc.email, acc.name)}
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className={`w-9 h-9 rounded-full ${acc.color || 'bg-indigo-600'} text-white flex items-center justify-center text-sm font-semibold shrink-0 shadow-xs`}>
-                        {acc.name ? acc.name.charAt(0).toUpperCase() : acc.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="overflow-hidden">
-                        <div className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                          {acc.name}
-                        </div>
-                        <div className="text-xs text-slate-500 font-mono truncate">
-                          {acc.email}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isCurrent && (
-                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => handleRemoveGoogleAccount(e, acc.email)}
-                        className="text-slate-300 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors text-xs font-bold"
-                        title="Remove account from device"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Account Input Box */}
-              {(showCustomGoogleInput || googleAccounts.length === 0) && (
-                <div className="p-6 bg-slate-50/70 space-y-3.5 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">
-                      {googleAccounts.length > 0 ? 'Sign in with another Google account:' : 'Sign in with your Google account:'}
-                    </span>
-                    {googleAccounts.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomGoogleInput(false)}
-                        className="text-xs font-semibold text-blue-600 hover:underline"
-                      >
-                        ← Back to accounts list
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2.5">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Your Email (Gmail or Google Workspace)</label>
-                      <input
-                        type="email"
-                        required
-                        value={customGoogleEmail}
-                        onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                        placeholder="e.g. yourname@gmail.com"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Your Display Name</label>
-                      <input
-                        type="text"
-                        value={customGoogleName}
-                        onChange={(e) => setCustomGoogleName(e.target.value)}
-                        placeholder="e.g. Rahul Sharma"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    {googleAccounts.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomGoogleInput(false)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={!customGoogleEmail.includes('@') || Boolean(googleSigningInEmail)}
-                      onClick={() => {
-                        const emailVal = customGoogleEmail.trim().toLowerCase();
-                        const nameVal = customGoogleName.trim() || emailVal.split('@')[0];
-                        handleSelectGoogleAccount(emailVal, nameVal);
-                      }}
-                      className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-                    >
-                      {googleSigningInEmail ? (
-                        <>
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Signing in...</span>
-                        </>
-                      ) : (
-                        <span>Continue with Google &rarr;</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Use Another Account Button */}
-              {!showCustomGoogleInput && googleAccounts.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomGoogleInput(true)}
-                  className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                >
-                  <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">
-                    Use another account
-                  </div>
-                </button>
-              )}
-            </div>
-
-            {/* Footer Notice */}
-            <div className="p-5 bg-slate-50/50 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
-              To continue, Google will share your name, email address, and language preference with Addon AI.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,5 +1,26 @@
 const API_BASE = '/api';
 
+export interface OpenStreetMapCompetitor {
+  osmId: string;
+  name: string;
+  category: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  website: string | null;
+  mapUrl: string;
+}
+
+export interface LocalCompetitorSearchResult {
+  businessType: string;
+  location: string;
+  searchedAt: string;
+  source: string;
+  attribution: string;
+  results: OpenStreetMapCompetitor[];
+}
+
 export class ApiClient {
   private static getToken(): string | null {
     return localStorage.getItem('marketmind_token');
@@ -65,7 +86,9 @@ export class ApiClient {
   static login = (data: any) => this.request<any>('/auth/login', { method: 'POST', body: JSON.stringify(data) });
   static adminLogin = (data: any) => this.request<any>('/auth/admin-login', { method: 'POST', body: JSON.stringify(data) });
   static demoLogin = () => this.request<any>('/auth/demo-login', { method: 'POST' });
-  static googleLogin = (data?: any) => this.request<any>('/auth/google-login', { method: 'POST', body: JSON.stringify(data || {}) });
+  static getGoogleAuthConfig = () => this.request<{ clientId: string | null }>('/auth/google-config');
+  static googleLogin = (credential: string) =>
+    this.request<any>('/auth/google-login', { method: 'POST', body: JSON.stringify({ credential }) });
   static signup = (data: any) => this.request<any>('/auth/signup', { method: 'POST', body: JSON.stringify(data) });
   static updateAdminSlots = (data: { claimedSlots?: number; totalSlots?: number }) =>
     this.request<any>('/admin/slots/update', { method: 'POST', body: JSON.stringify(data) });
@@ -231,6 +254,13 @@ export class ApiClient {
   static updateLeadStatus = (id: string, status: string) => this.request<any>(`/leads/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
 
   // Competitors
+  static getLocalCompetitorConfig = () =>
+    this.request<{ configured: boolean; provider: string }>('/competitors/local-config');
+  static searchLocalCompetitors = (data: { businessType: string; location: string }) =>
+    this.request<LocalCompetitorSearchResult>('/competitors/local-search', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   static analyzeCompetitor = (competitorUrl: string, businessId?: string) =>
     this.request<any>('/competitors/analyze', { method: 'POST', body: JSON.stringify({ competitorUrl, businessId }) });
   static getCompetitorsList = (businessId?: string) =>

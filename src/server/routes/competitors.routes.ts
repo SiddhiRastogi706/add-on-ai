@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
-import { optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { openStreetMapSearchLimiter } from '../middleware/rate-limit';
 import { getTenantBusiness } from '../middleware/tenant';
-import { CompetitorAgent } from '../ai/agents/competitor.agent';
+import { OpenStreetMapError, OpenStreetMapService } from '../services/openstreetmap.service';
 import { prisma } from '../db';
 
 const router = Router();
@@ -17,58 +18,50 @@ async function resolveBusiness(req: AuthRequest, businessId?: string) {
   return biz;
 }
 
-// POST /api/competitors/analyze
-router.post('/analyze', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
-    const { competitorUrl, businessId } = req.body;
-    if (!competitorUrl) {
-      return res.status(400).json({ error: 'Competitor URL is required' });
-    }
+router.get('/local-config', (_req, res) => {
+  res.json({
+    configured: OpenStreetMapService.isConfigured(),
+    provider: 'OpenStreetMap',
+  });
+});
 
-    const biz = await resolveBusiness(req, businessId);
-    const result = await CompetitorAgent.analyzeCompetitor(
-      competitorUrl,
-      biz?.industry || 'Transportation & Logistics',
-      biz?.websiteUrl,
-      biz?.name
-    );
-
-    // Save or update in database if business exists
-    if (biz?.id) {
-      const existing = await prisma.competitor.findFirst({
-        where: { businessId: biz.id, domain: result.competitorDomain },
-      }).catch(() => null);
-
-      if (existing) {
-        await prisma.competitor.update({
-          where: { id: existing.id },
-          data: {
-            name: result.competitorName,
-            trafficEstimate: result.organicTraffic.monthlyVisitsFormatted,
-            strengthsJson: JSON.stringify(result.topKeywords.slice(0, 5)),
-            weaknessesJson: JSON.stringify(result.actionableGaps.slice(0, 4)),
-            updatedAt: new Date(),
-          },
-        }).catch(() => null);
-      } else {
-        await prisma.competitor.create({
-          data: {
-            businessId: biz.id,
-            name: result.competitorName,
-            domain: result.competitorDomain,
-            trafficEstimate: result.organicTraffic.monthlyVisitsFormatted,
-            strengthsJson: JSON.stringify(result.topKeywords.slice(0, 5)),
-            weaknessesJson: JSON.stringify(result.actionableGaps.slice(0, 4)),
-          },
-        }).catch(() => null);
-      }
-    }
-
-    res.json(result);
-  } catch (err: any) {
-    console.error('[CompetitorsRoute] Analysis error:', err.message);
-    res.status(500).json({ error: err.message });
+router.post('/local-search', authMiddleware, openStreetMapSearchLimiter, async (req: AuthRequest, res: Response) => {
+  const { businessType, location } = req.body as {
+    businessType?: unknown;
+    location?: unknown;
+  };
+  if (
+    typeof businessType !== 'string' ||
+    typeof location !== 'string' ||
+    !businessType.trim() ||
+    !location.trim() ||
+    businessType.length > 100 ||
+    location.length > 100
+  ) {
+    return res.status(400).json({
+      error: 'Enter a business or service and a city or area (up to 100 characters each).',
+    });
   }
+
+  try {
+    const results = await OpenStreetMapService.searchCompetitors(
+      businessType.trim(),
+      location.trim()
+    );
+    res.json(results);
+  } catch (error) {
+    if (error instanceof OpenStreetMapError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error('[CompetitorsRoute] OpenStreetMap search failed:', error);
+    return res.status(500).json({ error: 'Local competitor search failed unexpectedly.' });
+  }
+});
+
+router.post('/analyze', optionalAuthMiddleware, (_req: AuthRequest, res: Response) => {
+  res.status(410).json({
+    error: 'The legacy domain audit used modeled estimates and has been retired. Use POST /api/competitors/local-search for live local listings.',
+  });
 });
 
 // GET /api/competitors - list saved competitors for this business

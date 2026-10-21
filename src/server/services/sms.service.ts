@@ -39,6 +39,23 @@ export class SmsService {
     return clean;
   }
 
+  private static async requestWithDnsRetry<T>(request: () => Promise<T>): Promise<T> {
+    try {
+      return await request();
+    } catch (error) {
+      if (
+        !axios.isAxiosError(error) ||
+        !['EAI_AGAIN', 'ENOTFOUND'].includes(error.code || '')
+      ) {
+        throw error;
+      }
+
+      console.warn(`[SmsService] Temporary DNS failure (${error.code}); retrying once.`);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return request();
+    }
+  }
+
   /**
    * Dispatches a 6-digit OTP via the best available SMS gateway
    */
@@ -155,10 +172,12 @@ export class SmsService {
 
       console.log(`[SmsService] FoxxSMS dispatching securely to ${formattedMobile.slice(0, 4)}••••${formattedMobile.slice(-2)} (Sender: ${senderid}, DLT: Active)`);
 
-      const response = await axios.get(gatewayUrl, {
-        params,
-        timeout: 10000,
-      });
+      const response = await this.requestWithDnsRetry(() =>
+        axios.get(gatewayUrl, {
+          params,
+          timeout: 10000,
+        })
+      );
 
       const data = typeof response.data === 'string' ? response.data.trim() : JSON.stringify(response.data);
       const normalizedResponse = data.toLowerCase();
@@ -201,21 +220,23 @@ export class SmsService {
   private static async sendViaFast2SMS(rawMobile: string, otp: string): Promise<SmsSendResult> {
     console.log(`[SmsService] Dispatching OTP to mobile: ${rawMobile} via Fast2SMS...`);
     try {
-      const response = await axios.post(
-        'https://www.fast2sms.com/dev/bulkV2',
-        {
-          route: 'q',
-          message: `Your Addon AI verification code is ${otp}. Valid for 10 minutes.`,
-          language: 'english',
-          numbers: rawMobile,
-        },
-        {
-          headers: {
-            authorization: this.fast2smsKey,
-            'Content-Type': 'application/json',
+      const response = await this.requestWithDnsRetry(() =>
+        axios.post(
+          'https://www.fast2sms.com/dev/bulkV2',
+          {
+            route: 'q',
+            message: `Your Addon AI verification code is ${otp}. Valid for 10 minutes.`,
+            language: 'english',
+            numbers: rawMobile,
           },
-          timeout: 10000,
-        }
+          {
+            headers: {
+              authorization: this.fast2smsKey,
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000,
+          }
+        )
       );
 
       console.log(`[SmsService] Fast2SMS response:`, response.data);
@@ -258,16 +279,18 @@ export class SmsService {
       params.append('From', this.twilioFrom!);
       params.append('Body', `Your Addon AI verification code is ${otp}. Valid for 10 minutes.`);
 
-      const response = await axios.post(
-        `https://api.twilio.com/2010-04-01/Accounts/${this.twilioSid}/Messages.json`,
-        params.toString(),
-        {
-          headers: {
-            Authorization: `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
+      const response = await this.requestWithDnsRetry(() =>
+        axios.post(
+          `https://api.twilio.com/2010-04-01/Accounts/${this.twilioSid}/Messages.json`,
+          params.toString(),
+          {
+            headers: {
+              Authorization: `Basic ${auth}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            timeout: 10000,
           },
-          timeout: 10000,
-        }
+        )
       );
 
       console.log(`[SmsService] Twilio response message SID:`, response.data?.sid);

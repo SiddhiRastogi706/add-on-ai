@@ -74,7 +74,7 @@ flowchart TD
 
     subgraph DataStorage["Data & State Layer"]
         PrismaORM["Prisma ORM (24 Relational Models)"]
-        Database[(SQLite / PostgreSQL)]
+        Database[(SQLite)]
         AIMemory["Isolated Tenant AI Memory"]
     end
 
@@ -100,11 +100,12 @@ flowchart TD
 git clone https://github.com/your-org/marketmind-ai.git
 cd marketmind-ai
 npm install
+cp .env.example .env
 ```
 
 ### 3. Initialize Database & Seed Demo Data
 ```bash
-# Push Prisma schema to local SQLite database
+# Push Prisma schema to the local SQLite database
 npm run db:push
 
 # Seed with verified realistic demo data (NexusFlow AI)
@@ -113,11 +114,12 @@ npm run db:seed
 
 ### 4. Run Development Servers
 ```bash
-# Starts both Express Backend (:5000) and Vite Frontend (:3000) concurrently
+# Starts both Express Backend (:5000) and Vite Frontend (:5173) concurrently
 npm run dev
 ```
 
-Open your browser at `http://localhost:3000`.
+Open your browser at `http://localhost:5173`.
+Use the language menu in the top-right corner to translate the page between English and Hindi.
 
 ### Wallet and AI usage billing
 
@@ -146,9 +148,9 @@ Copy `.env.example` to `.env`:
 # Server
 PORT=5000
 NODE_ENV=development
-APP_URL=http://localhost:3000
+APP_URL=http://localhost:5173
 
-# Database (SQLite; must match the provider in prisma/schema.prisma)
+# Local SQLite database
 DATABASE_URL="file:./dev.db"
 
 # Authentication
@@ -165,6 +167,11 @@ OPENAI_API_KEY=
 REDIS_URL=
 
 # External OAuth Integrations
+# Google sign-in requires a Google Cloud OAuth 2.0 Web application client ID.
+# Add each frontend origin under Authorized JavaScript origins (not redirect URIs):
+#   http://localhost:5173
+#   https://your-production-domain.example
+# GOOGLE_CLIENT_ID must be this same Web application client ID on the API server.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 META_APP_ID=
@@ -174,6 +181,51 @@ LINKEDIN_CLIENT_SECRET=
 ```
 
 ---
+
+### Google sign-in troubleshooting
+
+If Google shows `Error 401: invalid_client` or `no registered origin`, the OAuth
+client is not authorized for the exact website origin currently open in the
+browser. In Google Cloud Console, open **APIs & Services → Credentials**, edit
+the OAuth 2.0 Client ID used by this app, and confirm its application type is
+**Web application**. Under **Authorized JavaScript origins**, add
+`http://localhost:5173` for local Vite development. For a deployed site, add its
+origin too (for example, `https://app.example.com`). Enter only the scheme and
+hostname plus an optional port—do not include `/login`, another path, or a
+trailing slash. Add `http://127.0.0.1:5173` separately only if you open the app
+using that host.
+
+Set `GOOGLE_CLIENT_ID` on the API server to the exact client ID of that same
+Web application OAuth client, then restart the local API or redeploy/restart
+the production backend. The frontend loads this ID from `/api/auth/google-config`,
+and the backend uses it to verify the returned Google credential. A client ID
+being present in `.env` alone does not register a browser origin; that must be
+done in Google Cloud Console.
+
+### Local competitor analysis setup
+
+The local competitor page uses OpenStreetMap's public Nominatim geocoder and
+Overpass service to return live mapped business names, categories, addresses,
+websites (when mapped), and approximate distance. It needs no paid API key.
+Searches are authenticated and rate-limited; results are not persisted, and
+geocoding requests are serialized and briefly cached in process. Public
+community services are shared resources with usage limits and no uptime
+guarantee. If the primary Overpass endpoint is busy, the backend tries two
+compatible public mirrors, then searches mapped place names via Nominatim. The
+fallback is a smaller name-based search and may return fewer listings.
+`OSM_NOMINATIM_URL` and `OSM_OVERPASS_URL` can be set to compatible providers if
+the defaults need to be changed. Set `OSM_CONTACT_EMAIL` to a
+maintainer contact for the identifying geocoder User-Agent in production. The
+built-in throttle is per backend process; keep a single backend instance when
+using the public endpoints, or use a shared distributed throttle and compatible
+provider before scaling horizontally.
+
+OpenStreetMap does not provide Google ratings, reviews, or photos; the UI does
+not invent or estimate them. Results require OpenStreetMap attribution, and
+OpenStreetMap data is available under the ODbL. For a commercial production
+service, review the
+[Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/)
+and [OpenStreetMap copyright/attribution terms](https://www.openstreetmap.org/copyright).
 
 ## 🧪 Automated Testing
 

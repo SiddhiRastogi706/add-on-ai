@@ -173,10 +173,11 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/');
           setCurrentView('landing');
         }}
-        onSuccess={() => {
-          if (user?.role === 'SUPER_ADMIN') {
+        onSuccess={(authenticatedUser) => {
+          const signedInUser = authenticatedUser || user;
+          if (signedInUser?.role === 'SUPER_ADMIN') {
             setCurrentView('admin');
-          } else if (!hasCompletedBusinessSetup(user?.id)) {
+          } else if (!hasCompletedBusinessSetup(signedInUser?.id)) {
             setCurrentView('onboarding');
           } else {
             setCurrentView('dashboard');
