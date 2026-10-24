@@ -121,6 +121,10 @@ npm run dev
 Open your browser at `http://localhost:5173`.
 Use the language menu in the top-right corner to translate the page between English and Hindi.
 
+### Account sign-in
+
+Create an account with a unique username, email address, and your own password. Sign in later with either your email or username and that password. Passwords are stored as bcrypt hashes. If you forget your password, choose **Forgot password?** to receive a one-time reset code by email; configure `RESEND_API_KEY` (and optionally `EMAIL_FROM`) on the server for password recovery emails.
+
 ### Wallet and AI usage billing
 
 Signed-in users can open the wallet from the top-right header, add ₹100–₹50,000 through the configured Cashfree or Razorpay gateway, and review recent wallet transactions. Successful top-ups are credited once after payment verification. Authenticated Gemini requests reserve funds before calling the provider, then settle against Gemini's returned input/output token counts; unused reservation is released. Wallet values are stored in paise.
@@ -162,6 +166,11 @@ SESSION_SECRET=your_session_secret_key_here
 AI_PROVIDER=auto
 GEMINI_API_KEY=
 OPENAI_API_KEY=
+
+# Phone OTP provider: StartMessaging uses an X-API-Key header.
+SMS_PROVIDER=startmessaging
+SMS_GATEWAY_URL=https://api.startmessaging.com/otp/send
+SMS_API_KEY=your_startmessaging_api_key
 
 # Background Queue (Optional: uses high-speed in-process queue if Redis is not set)
 REDIS_URL=

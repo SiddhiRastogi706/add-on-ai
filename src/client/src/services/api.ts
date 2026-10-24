@@ -83,13 +83,20 @@ export class ApiClient {
   }
 
   // Auth
-  static login = (data: any) => this.request<any>('/auth/login', { method: 'POST', body: JSON.stringify(data) });
+  static login = (data: { identifier: string; password: string }) =>
+    this.request<any>('/auth/login', { method: 'POST', body: JSON.stringify(data) });
   static adminLogin = (data: any) => this.request<any>('/auth/admin-login', { method: 'POST', body: JSON.stringify(data) });
   static demoLogin = () => this.request<any>('/auth/demo-login', { method: 'POST' });
   static getGoogleAuthConfig = () => this.request<{ clientId: string | null }>('/auth/google-config');
   static googleLogin = (credential: string) =>
     this.request<any>('/auth/google-login', { method: 'POST', body: JSON.stringify({ credential }) });
-  static signup = (data: any) => this.request<any>('/auth/signup', { method: 'POST', body: JSON.stringify(data) });
+  static signup = (data: {
+    email: string;
+    username: string;
+    password: string;
+    name: string;
+    organizationName?: string;
+  }) => this.request<any>('/auth/signup', { method: 'POST', body: JSON.stringify(data) });
   static updateAdminSlots = (data: { claimedSlots?: number; totalSlots?: number }) =>
     this.request<any>('/admin/slots/update', { method: 'POST', body: JSON.stringify(data) });
   static getMe = () => this.request<any>('/auth/me');

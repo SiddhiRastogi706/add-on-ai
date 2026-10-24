@@ -4,6 +4,7 @@ import { ApiClient } from '../services/api';
 export interface User {
   id: string;
   email: string;
+  username?: string | null;
   contactEmail?: string | null;
   name: string;
   role: string;

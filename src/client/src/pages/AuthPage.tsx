@@ -62,6 +62,370 @@ interface AuthPageProps {
   onBack?: () => void;
 }
 
+interface PasswordAuthFormProps {
+  initialMode: 'login' | 'signup';
+  onAuthenticated: (result: { token: string; user: any }) => Promise<void>;
+  onBack?: () => void;
+  onAdminLogin: () => void;
+  googleButtonRef: React.RefObject<HTMLDivElement>;
+  googleButtonLoading: boolean;
+  googleError: string | null;
+}
+
+const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
+  initialMode,
+  onAuthenticated,
+  onBack,
+  onAdminLogin,
+  googleButtonRef,
+  googleButtonLoading,
+  googleError,
+}) => {
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>(initialMode);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const { login } = useAuth();
+
+  const completeAuth = async (result: { token: string; user: any }) => {
+    await login(result.token, result.user);
+    await onAuthenticated(result);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+
+    try {
+      if (mode === 'login') {
+        const result = await ApiClient.login({ identifier: identifier.trim(), password });
+        await completeAuth(result);
+        return;
+      }
+
+      if (mode === 'signup') {
+        const cleanUsername = username.trim().toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(cleanUsername)) {
+          throw new Error('Username must be 3–30 characters and use letters, numbers, dots, underscores, or hyphens.');
+        }
+        if (password.length < 8 || password.length > 128) {
+          throw new Error('Password must be between 8 and 128 characters.');
+        }
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match.');
+        }
+        const result = await ApiClient.signup({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          username: cleanUsername,
+          password,
+          organizationName: workspaceName.trim() || undefined,
+        });
+        await completeAuth(result);
+        return;
+      }
+
+      if (mode === 'forgot') {
+        const result = await ApiClient.sendOtp(email.trim().toLowerCase(), 'email');
+        setIdentifier(email.trim().toLowerCase());
+        setMode('reset');
+        setMessage(result.message || 'A password reset code was sent to your email.');
+        return;
+      }
+
+      if (!/^\d{6}$/.test(resetCode)) {
+        throw new Error('Enter the 6-digit reset code from your email.');
+      }
+      if (password.length < 8 || password.length > 128) {
+        throw new Error('New password must be between 8 and 128 characters.');
+      }
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match.');
+      }
+      const result = await ApiClient.verifyOtpAndReset(identifier, resetCode, password);
+      await completeAuth(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isSignup = mode === 'signup';
+  const isReset = mode === 'reset';
+  const isForgot = mode === 'forgot';
+  const title = isSignup
+    ? 'Create your account'
+    : isForgot
+      ? 'Reset your password'
+      : isReset
+        ? 'Choose a new password'
+        : 'Welcome back';
+
+  const inputClassName =
+    'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100';
+
+  return (
+    <div className="min-h-screen bg-slate-950 px-4 py-10 sm:px-6">
+      <div className="mx-auto flex min-h-[80vh] max-w-5xl items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-3xl border border-slate-800 bg-white shadow-2xl lg:grid-cols-[0.9fr_1.1fr]">
+          <aside className="hidden flex-col justify-between bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-10 text-white lg:flex">
+            <div>
+              <img
+                src="/addonaix-horizontal.png"
+                alt="AddonAIx"
+                className="mb-10 h-12 w-44 object-contain object-left"
+              />
+              <h1 className="text-3xl font-black leading-tight">
+                Your growth workspace, on your terms.
+              </h1>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Create your own username and password. Your password is securely hashed before it is stored.
+              </p>
+            </div>
+            <div className="space-y-3 text-sm text-slate-300">
+              <p className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-400" /> One account for your team workspace</p>
+              <p className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Forgot-password recovery by email</p>
+            </div>
+          </aside>
+
+          <main className="p-6 sm:p-10 lg:p-12">
+            <div className="mb-8 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={onBack || (() => { window.location.href = '/'; })}
+                className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 transition hover:text-indigo-700"
+              >
+                <ArrowLeft className="h-4 w-4" /> Home
+              </button>
+              <button
+                type="button"
+                onClick={onAdminLogin}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
+              >
+                Master Admin
+              </button>
+            </div>
+
+            <h2 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {isSignup
+                ? 'Set up your login details to get started.'
+                : isForgot
+                  ? 'Enter your account email and we will send a reset code.'
+                  : isReset
+                    ? `Enter the code sent to ${identifier} and set a new password.`
+                    : 'Sign in with your email or username and password.'}
+            </p>
+
+            {(error || googleError) && (
+              <div role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {error || googleError}
+              </div>
+            )}
+            {message && (
+              <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                {message}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              {isSignup && (
+                <>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">Full name</span>
+                    <input
+                      required
+                      autoComplete="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      className={inputClassName}
+                      placeholder="Your name"
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">Username</span>
+                    <input
+                      required
+                      minLength={3}
+                      maxLength={30}
+                      autoComplete="username"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value.replace(/\s/g, '').toLowerCase())}
+                      className={inputClassName}
+                      placeholder="Choose a unique username"
+                    />
+                    <span className="text-[11px] text-slate-400">3–30 characters: letters, numbers, dots, underscores, or hyphens.</span>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">Email</span>
+                    <input
+                      required
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className={inputClassName}
+                      placeholder="you@example.com"
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">Workspace name <span className="font-normal text-slate-400">(optional)</span></span>
+                    <input
+                      value={workspaceName}
+                      onChange={(event) => setWorkspaceName(event.target.value)}
+                      className={inputClassName}
+                      placeholder="Your company or workspace"
+                    />
+                  </label>
+                </>
+              )}
+
+              {mode === 'login' && (
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold text-slate-700">Email or username</span>
+                  <input
+                    required
+                    autoComplete="username"
+                    value={identifier}
+                    onChange={(event) => setIdentifier(event.target.value)}
+                    className={inputClassName}
+                    placeholder="Email or username"
+                  />
+                </label>
+              )}
+
+              {isForgot && (
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold text-slate-700">Account email</span>
+                  <input
+                    required
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className={inputClassName}
+                    placeholder="you@example.com"
+                  />
+                </label>
+              )}
+
+              {isReset && (
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold text-slate-700">6-digit reset code</span>
+                  <input
+                    required
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(event) => setResetCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className={inputClassName}
+                    placeholder="Enter code from email"
+                  />
+                </label>
+              )}
+
+              {(mode === 'login' || isSignup || isReset) && (
+                <>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">{isReset ? 'New password' : 'Password'}</span>
+                    <input
+                      required
+                      type={showPassword ? 'text' : 'password'}
+                      minLength={8}
+                      maxLength={128}
+                      autoComplete={isReset || isSignup ? 'new-password' : 'current-password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className={inputClassName}
+                      placeholder="At least 8 characters"
+                    />
+                  </label>
+                  {(isSignup || isReset) && (
+                    <label className="block space-y-1.5">
+                      <span className="text-xs font-bold text-slate-700">Confirm password</span>
+                      <input
+                        required
+                        type={showPassword ? 'text' : 'password'}
+                        minLength={8}
+                        maxLength={128}
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
+                        className={inputClassName}
+                        placeholder="Enter the same password again"
+                      />
+                    </label>
+                  )}
+                  {(isSignup || isReset) && (
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
+                      <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
+                      Show passwords
+                    </label>
+                  )}
+                </>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? 'Please wait…' : isSignup ? 'Create account' : isForgot ? 'Send reset code' : isReset ? 'Reset password' : 'Sign in'}
+                {!loading && <ArrowRight className="h-4 w-4" />}
+              </button>
+            </form>
+
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(null); setMessage(null); }}
+                className="mt-4 text-xs font-bold text-indigo-600 hover:text-indigo-800"
+              >
+                Forgot password?
+              </button>
+            )}
+
+            {(mode === 'login' || isSignup) && (
+              <>
+                <div className="my-6 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200" /> Or <span className="h-px flex-1 bg-slate-200" />
+                </div>
+                <div className="relative flex min-h-12 w-full items-center justify-center">
+                  {googleButtonLoading && <span className="absolute h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />}
+                  <div ref={googleButtonRef} className={googleButtonLoading ? 'invisible' : 'flex w-full justify-center'} />
+                </div>
+              </>
+            )}
+
+            <p className="mt-6 text-center text-sm text-slate-500">
+              {mode === 'login' ? (
+                <>New here? <button type="button" onClick={() => { setMode('signup'); setError(null); setMessage(null); }} className="font-bold text-indigo-600 hover:text-indigo-800">Create an account</button></>
+              ) : mode === 'signup' ? (
+                <>Already have an account? <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null); }} className="font-bold text-indigo-600 hover:text-indigo-800">Sign in</button></>
+              ) : (
+                <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null); }} className="font-bold text-indigo-600 hover:text-indigo-800">Back to sign in</button>
+              )}
+            </p>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // FIX 5: safe localStorage read (private mode / blocked storage mein crash nahi hoga)
 const safeGetItem = (key: string): string | null => {
   try {
@@ -169,7 +533,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
         if (cancelled) return;
         if (!clientId) {
           setGoogleButtonLoading(false);
-          setError('Google sign-in is not configured. Please use phone OTP or contact support.');
+          setError('Google sign-in is not configured. Use your email or username and password instead.');
           return;
         }
 
@@ -409,6 +773,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup', onSu
       setLoading(false);
     }
   };
+
+  if (!isAdminMode) {
+    return (
+      <PasswordAuthForm
+        initialMode={initialMode === 'login' ? 'login' : 'signup'}
+        onAuthenticated={async (result) => onSuccess(result.user)}
+        onBack={onBack}
+        onAdminLogin={() => {
+          setError(null);
+          setIsAdminMode(true);
+        }}
+        googleButtonRef={googleButtonRef}
+        googleButtonLoading={googleButtonLoading}
+        googleError={error}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-3 sm:p-6 lg:p-10 bg-slate-950 relative overflow-hidden">

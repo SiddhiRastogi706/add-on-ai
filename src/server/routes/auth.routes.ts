@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest, JWT_SECRET } from '../middleware/auth';
 import { SmsService } from '../services/sms.service';
@@ -14,20 +14,48 @@ const router = Router();
 
 router.post('/signup', authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, password, name, organizationName } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    const { email, username, password, name, organizationName } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanOrganizationName =
+      typeof organizationName === 'string' ? organizationName.trim() : '';
+
+    if (!normalizedEmail || !normalizedUsername || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Email, username, and password are required.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Enter a valid email address.' });
+    }
+    if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(normalizedUsername)) {
+      return res.status(400).json({
+        error: 'Username must be 3–30 characters and use only letters, numbers, dots, underscores, or hyphens.',
+      });
+    }
+    if (password.length < 8 || password.length > 128) {
+      return res.status(400).json({ error: 'Password must be between 8 and 128 characters.' });
+    }
+    if (cleanName.length > 100 || cleanOrganizationName.length > 100) {
+      return res.status(400).json({ error: 'Name and workspace name must be 100 characters or fewer.' });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: normalizedEmail }, { username: normalizedUsername }],
+      },
+    });
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+      return res.status(409).json({
+        error: existingUser.email === normalizedEmail
+          ? 'An account with this email already exists.'
+          : 'That username is already taken.',
+      });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const org = await prisma.organization.create({
       data: {
-        name: organizationName || `${name || 'Founder'}'s Workspace`,
+        name: cleanOrganizationName || `${cleanName || normalizedUsername}'s Workspace`,
         plan: 'growth',
         aiTokensUsed: 0,
         aiTokensLimit: 600000,
@@ -36,9 +64,10 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
+        username: normalizedUsername,
         passwordHash,
-        name: name || 'Marketing Lead',
+        name: cleanName || normalizedUsername,
         role: 'ADMIN',
         organizationId: org.id,
       },
@@ -48,7 +77,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     await prisma.business.create({
       data: {
         organizationId: org.id,
-        name: organizationName || name || 'Your Business',
+        name: cleanOrganizationName || cleanName || normalizedUsername,
         industry: 'Professional Services',
         websiteUrl: 'https://yourwebsite.com',
         description: 'Digital growth business profile for our company.',
@@ -91,6 +120,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         name: user.name,
         role: user.role,
         organizationId: org.id,
@@ -104,13 +134,22 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
 
 router.post('/login', authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    const { email, username, identifier, password } = req.body;
+    const loginIdentifier = [identifier, email, username].find(
+      (value) => typeof value === 'string' && value.trim()
+    );
+    if (typeof loginIdentifier !== 'string' || typeof password !== 'string' || !password) {
+      return res.status(400).json({ error: 'Enter your email or username and password.' });
     }
+    const normalizedIdentifier = loginIdentifier.trim().toLowerCase();
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: normalizedIdentifier },
+          { username: normalizedIdentifier },
+        ],
+      },
       include: { organization: true },
     });
 
@@ -147,6 +186,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         name: user.name,
         role: user.role,
         organizationId: user.organizationId,
@@ -487,7 +527,7 @@ router.post('/otp/send', authLimiter, async (req: Request, res: Response) => {
     }
 
     // Generate secure 6-digit numeric OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Update in database
@@ -521,7 +561,7 @@ router.post('/otp/send', authLimiter, async (req: Request, res: Response) => {
       smsResult = await SmsService.sendOtp(identifier.trim(), otp);
     }
 
-    // If email channel, dispatch branded email via EmailService
+    // Send reset codes by email only when the email provider accepts the request.
     if (channel === 'email' || !cleanDigits || cleanDigits.length < 10) {
       const emailData = EmailService.templates.otpBackup({
         name: user.name,
@@ -529,22 +569,26 @@ router.post('/otp/send', authLimiter, async (req: Request, res: Response) => {
         otp,
         expiresMinutes: 10,
       });
-      EmailService.sendEmail({
+      const emailResult = await EmailService.sendEmail({
         to: user.email,
         subject: emailData.subject,
         html: emailData.html,
         text: emailData.text,
         organizationId: user.organizationId,
-      }).catch((e) => console.warn('[Auth] OTP email send error:', e.message));
+      });
+      if (!emailResult.sent) {
+        otpMemoryCache.delete(cleanId);
+        otpMemoryCache.delete(user.email.toLowerCase());
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { resetOtp: null, resetOtpExpires: null },
+        });
+        console.error('[Auth] Password reset email was not accepted:', emailResult.error || emailResult.reason);
+        return res.status(502).json({
+          error: 'Could not send the password reset email. Check the email service configuration and try again.',
+        });
+      }
     }
-
-    console.log(`\n=============================================================`);
-    console.log(`🔐 [MarketMind OTP Service] Verification Code for ${user.email} (${channel}):`);
-    console.log(`   >>> CODE: ${otp} <<< (Valid for 10 minutes)`);
-    if (smsResult) {
-      console.log(`   >>> [${smsResult.provider?.toUpperCase()}] Dispatch: ${smsResult.success ? 'SUCCESS (ID: ' + smsResult.messageId + ')' : 'FAILED: ' + smsResult.error}`);
-    }
-    console.log(`=============================================================\n`);
 
     const smsSent = Boolean(smsResult?.success);
     let responseMsg = '';
@@ -618,24 +662,18 @@ router.post('/otp/verify-reset', authLimiter, async (req: Request, res: Response
       return res.status(400).json({ error: 'Invalid or expired 6-digit code. Please request a new OTP.' });
     }
 
-    // If new password supplied, update passwordHash
-    if (newPassword && typeof newPassword === 'string' && newPassword.trim().length >= 6) {
-      const passwordHash = await bcrypt.hash(newPassword.trim(), 10);
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordHash,
-          resetOtp: null,
-          resetOtpExpires: null,
-        },
-      });
-    } else {
-      // Clear OTP
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { resetOtp: null, resetOtpExpires: null },
-      });
+    if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
+      return res.status(400).json({ error: 'Choose a new password between 8 and 128 characters.' });
     }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        resetOtp: null,
+        resetOtpExpires: null,
+      },
+    });
 
     // Clear cache
     otpMemoryCache.delete(cleanId);
@@ -684,7 +722,7 @@ router.post('/otp/verify-reset', authLimiter, async (req: Request, res: Response
 // -------------------------------------------------------------
 
 // Step 1: Send 6-digit OTP to real mobile number via SMS Gateway
-router.post('/phone/send-otp', async (req: Request, res: Response) => {
+router.post('/phone/send-otp', authLimiter, async (req: Request, res: Response) => {
   try {
     const { phone, name, organizationName, email } = req.body;
     if (!phone || typeof phone !== 'string' || !phone.trim()) {
@@ -732,7 +770,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
 
     // In local development, allow a safe mock SMS flow when no gateway is configured.
     const smsResult = await SmsService.sendOtp(cleanPhone, otp);
-    const isDevFallback = process.env.NODE_ENV !== 'production' && smsResult.provider === 'demo-dev';
+    const isDevFallback = process.env.NODE_ENV !== 'production' && smsResult.provider === 'dev-console';
 
     if (!smsResult.success && !isDevFallback) {
       otpMemoryCache.delete(cleanPhone);
@@ -744,7 +782,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
       }
       console.warn(`[Auth] OTP SMS delivery failed via ${smsResult.provider}: ${smsResult.error}`);
       return res.status(502).json({
-        error: `SMS provider ${smsResult.provider} could not deliver the OTP${smsResult.error ? `: ${smsResult.error}` : '.'} Check the provider account balance and DLT sender/template configuration, then try again.`,
+        error: `SMS provider ${smsResult.provider} could not deliver the OTP${smsResult.error ? `: ${smsResult.error}` : ". Please check that provider's account configuration and try again."}`,
         provider: smsResult.provider,
       });
     }
@@ -773,7 +811,7 @@ router.post('/phone/send-otp', async (req: Request, res: Response) => {
 });
 
 // Step 2: Verify 6-digit OTP and automatically log in / register (No passwords!)
-router.post('/phone/verify-otp', async (req: Request, res: Response) => {
+router.post('/phone/verify-otp', authLimiter, async (req: Request, res: Response) => {
   try {
     const { phone, otp, name, organizationName, email } = req.body;
     if (!phone || !otp) {
