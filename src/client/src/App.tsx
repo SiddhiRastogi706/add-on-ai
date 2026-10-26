@@ -25,6 +25,7 @@ import { PosterStudioView } from './pages/PosterStudioView';
 import { GeoAeoView } from './pages/GeoAeoView';
 import { PublicPages, PublicPageSlug } from './pages/PublicPages';
 import { CopilotWidget } from './components/copilot/CopilotWidget';
+import { PushPermissionPrompt } from './components/push/PushPermissionPrompt';
 import { ApiClient } from './services/api';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -274,6 +275,7 @@ export const App: React.FC = () => {
 
       {/* Floating AI Copilot Widget */}
       <CopilotWidget />
+      <PushPermissionPrompt />
     </div>
   );
 };

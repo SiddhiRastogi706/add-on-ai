@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, X, ShieldCheck, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, Wallet, X, ShieldCheck, LoaderCircle } from 'lucide-react';
 import { ApiClient } from '../../services/api';
 
 interface WalletTopUpModalProps {
@@ -50,7 +50,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
         setBalancePaise(wallet.balancePaise);
         setTransactions(wallet.transactions || []);
       })
-      .catch((walletError: any) => setError(walletError.message || 'Wallet load nahi ho paya.'));
+      .catch((walletError: any) => setError(walletError.message || 'Could not load your wallet.'));
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -66,7 +66,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
   const handleTopUp = async () => {
     setError('');
     if (!Number.isInteger(amount) || amount < 100 || amount > 50000) {
-      setError('₹100 se ₹50,000 ke beech poori rupee amount chunein.');
+      setError('Enter a whole-rupee amount between ₹100 and ₹50,000.');
       return;
     }
 
@@ -76,20 +76,20 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
 
       if (order.provider === 'cashfree' && order.paymentSessionId) {
         const loaded = await loadScript('https://sdk.cashfree.com/js/v3/cashfree.js');
-        if (!loaded || !window.Cashfree) throw new Error('Cashfree checkout load nahi ho paya.');
+        if (!loaded || !window.Cashfree) throw new Error('Could not load Cashfree checkout.');
         const cashfree = window.Cashfree({ mode: order.env === 'sandbox' ? 'sandbox' : 'production' });
         const result = await cashfree.checkout({
           paymentSessionId: order.paymentSessionId,
           redirectTarget: '_modal',
         });
-        if (result?.error) throw new Error('Payment complete nahi hua. Aap dobara try kar sakte hain.');
+        if (result?.error) throw new Error('Payment was not completed. Please try again.');
         await finishTopUp(order.orderId, 'cashfree');
         return;
       }
 
       if (order.provider === 'razorpay' && order.keyId) {
         const loaded = await loadScript('https://checkout.razorpay.com/v1/checkout.js');
-        if (!loaded || !window.Razorpay) throw new Error('Razorpay checkout load nahi ho paya.');
+        if (!loaded || !window.Razorpay) throw new Error('Could not load Razorpay checkout.');
         const checkout = new window.Razorpay({
           key: order.keyId,
           amount: order.amount,
@@ -107,7 +107,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
               await onSuccess();
               onClose();
             } catch (verificationError: any) {
-              setError(verificationError.message || 'Payment verify nahi ho paya.');
+              setError(verificationError.message || 'Could not verify the payment.');
             } finally {
               setProcessing(false);
             }
@@ -119,31 +119,42 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
         return;
       }
 
-      throw new Error('Wallet payment gateway available nahi hai.');
+      throw new Error('Wallet payment gateway is not available.');
     } catch (topUpError: any) {
-      setError(topUpError.message || 'Wallet top-up nahi ho paya. Dobara try karein.');
+      setError(topUpError.message || 'Wallet top-up failed. Please try again.');
       setProcessing(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between bg-gradient-to-r from-indigo-700 to-violet-600 p-6 text-white">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
-              <Wallet className="h-5 w-5" />
+      <div className="max-h-[96vh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#0b1030] via-indigo-900 to-violet-700 px-6 pb-5 pt-4 text-white">
+          <div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-fuchsia-500/30 blur-3xl" />
+          <div className="relative mb-3 flex items-center justify-between">
+            <button type="button" onClick={onClose} disabled={processing} aria-label="Back" className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 hover:bg-white/25">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+            <button type="button" onClick={onClose} disabled={processing} aria-label="Close wallet top-up" className="rounded-full p-1.5 text-white/80 hover:bg-white/15 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="relative">
+            <span className="flex w-full items-center justify-center rounded-2xl bg-white px-3 py-3 shadow-lg">
+              <img src="/addonaix-horizontal.png" alt="AddonAIX" className="h-24 w-full max-w-xs object-contain" />
             </span>
-            <div>
-              <h2 className="text-lg font-bold">Wallet mein paise add karein</h2>
-              <p className="mt-1 text-xs text-indigo-100">AI usage par wallet se automatic deduction hoga</p>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <Wallet className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold">Add money to your wallet</h2>
+                <p className="mt-0.5 text-xs text-indigo-100">AI usage is deducted from your wallet automatically</p>
+              </div>
             </div>
           </div>
-          <button type="button" onClick={onClose} disabled={processing} aria-label="Close wallet top-up" className="rounded-full p-1.5 text-white/80 hover:bg-white/15 hover:text-white">
-            <X className="h-5 w-5" />
-          </button>
         </div>
-
         <div className="space-y-5 p-6">
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Available balance</p>
@@ -194,7 +205,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {processing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            {processing ? 'Payment verify ho raha hai...' : `₹${amount.toLocaleString('en-IN')} add karein`}
+            {processing ? 'Verifying payment...' : `Add ₹${amount.toLocaleString('en-IN')}`}
           </button>
           <p className="text-center text-[11px] text-slate-400">Secure payment via Cashfree / Razorpay</p>
 

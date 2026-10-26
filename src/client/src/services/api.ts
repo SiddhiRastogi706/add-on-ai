@@ -358,6 +358,14 @@ export class ApiClient {
 
   // Admin
   static getAdminMetrics = () => this.request<any>('/admin/metrics');
+  static savePushToken = (token: string, adminAlerts?: boolean) =>
+    this.request<any>('/push/token', { method: 'POST', body: JSON.stringify({ token, adminAlerts }) });
+  static deletePushToken = (token: string) =>
+    this.request<any>('/push/token', { method: 'DELETE', body: JSON.stringify({ token }) });
+  static getPushOverview = () => this.request<any>('/push/admin/overview');
+  static sendPushBroadcast = (data: { title: string; body: string; link?: string; mode: 'tokens' | 'topic' }) =>
+    this.request<any>('/push/admin/broadcast', { method: 'POST', body: JSON.stringify(data) });
+  static syncPushTopic = () => this.request<any>('/push/admin/sync-topic', { method: 'POST' });
 
   // Chat Copilot
   static sendChatMessage = (message: string, history?: any[], businessId?: string) =>

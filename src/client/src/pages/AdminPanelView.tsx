@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApiClient } from '../services/api';
 import { useAuth } from '../store/AuthContext';
+import { AdminPushPanel } from './AdminPushPanel';
 import {
   ShieldAlert,
   Server,
@@ -45,7 +46,7 @@ export const AdminPanelView: React.FC = () => {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'ads' | 'posters' | 'revenue' | 'slots'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'ads' | 'posters' | 'revenue' | 'slots' | 'push'>('overview');
   
   // User Search & Filters
   const [userSearch, setUserSearch] = useState('');
@@ -327,6 +328,7 @@ export const AdminPanelView: React.FC = () => {
           { id: 'posters', label: '🎨 Generated AI Posters', count: metrics?.posters?.totalGenerated || 156 },
           { id: 'revenue', label: '💰 Revenue & Financials', count: `₹${((metrics?.revenue?.totalGrossRevenue || 229411) / 1000).toFixed(0)}k` },
           { id: 'slots', label: '⚡ Slot Controller', count: `${metrics?.users?.slot1Claims?.claimed || 89}/100` },
+          { id: 'push', label: '🔔 Push Notifications', count: null },
         ].map((tab) => {
           const isSelected = activeTab === tab.id;
           return (
@@ -351,6 +353,9 @@ export const AdminPanelView: React.FC = () => {
           );
         })}
       </div>
+
+      {/* TAB: PUSH NOTIFICATIONS */}
+      {activeTab === 'push' && <AdminPushPanel />}
 
       {/* TAB 0: MASTER OVERVIEW */}
       {activeTab === 'overview' && (

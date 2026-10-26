@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ApiClient } from '../services/api';
+import { removePushToken } from '../services/push';
 
 export interface User {
   id: string;
@@ -89,6 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Token hatane ke liye API call clearToken se pehle start honi chahiye
+    void removePushToken();
     ApiClient.clearToken();
     setUser(null);
     setBusiness(null);

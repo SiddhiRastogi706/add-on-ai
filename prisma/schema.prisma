@@ -43,8 +43,41 @@ model User {
   organizationId  String
   organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   notifications   Notification[]
+  pushTokens      PushToken[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+}
+
+// Web push (FCM) device tokens; ek user ke multiple devices ho sakte hain
+model PushToken {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  deviceLabel  String?
+  isAdminAlert Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isAdminAlert])
+}
+
+// Admin broadcasts ka record; daily promotional cap isi se count hota hai
+model PushBroadcast {
+  id            String   @id @default(cuid())
+  title         String
+  body          String
+  link          String?
+  mode          String   @default("tokens") // tokens | topic
+  sentById      String
+  totalTokens   Int      @default(0)
+  successCount  Int      @default(0)
+  failureCount  Int      @default(0)
+  removedTokens Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model Business {

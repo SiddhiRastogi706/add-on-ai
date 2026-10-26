@@ -43,6 +43,7 @@ import paymentsRoutes from './routes/payments.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import emailRoutes from './routes/email.routes';
 import walletRoutes from './routes/wallet.routes';
+import pushRoutes from './routes/push.routes';
 import { RedisService } from './services/redis.service';
 import { GeoAgent } from './ai/agents/geo.agent';
 import { prisma } from './db';
@@ -158,6 +159,7 @@ app.use('/api/posters', posterRoutes);
 app.use('/api/slots', slotsRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/email', emailRoutes);
 

@@ -241,6 +241,16 @@ service, review the
 [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/)
 and [OpenStreetMap copyright/attribution terms](https://www.openstreetmap.org/copyright).
 
+## 🔔 Push Notifications (Firebase Cloud Messaging)
+
+1. [Firebase Console](https://console.firebase.google.com) → create a project → **Project settings → General → Your apps → Web app (`</>`)**. Copy the config values into the `VITE_FIREBASE_*` variables.
+2. **Project settings → Cloud Messaging → Web configuration → Web Push certificates → Generate key pair**. Copy the key into `VITE_FIREBASE_VAPID_KEY`.
+3. **Project settings → Service accounts → Generate new private key**. Put the JSON in `FIREBASE_SERVICE_ACCOUNT_BASE64` (`[Convert]::ToBase64String([IO.File]::ReadAllBytes("key.json"))` on PowerShell) or fill `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`. Never commit this file.
+4. Run `npm run db:push` once (adds `PushToken` and `PushBroadcast`) and rebuild; `VITE_*` values are baked in at build time, so set them on Render before the build.
+5. Log in as the master admin → **Push Notifications** tab → **Enable Notifications** to receive an alert for every user login. Use the same tab to send to all users (max 3 promotional sends per day, India time).
+
+Push needs HTTPS (or `localhost`). Users who block notifications are never asked again; "Not now" asks again after 3 days.
+
 ## 🧪 Automated Testing
 
 Run the full end-to-end verification suite covering safety validators, crawler accuracy, agent generation, budget guardrails, and lead scoring:

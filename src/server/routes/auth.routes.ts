@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
-import { randomBytes, randomInt } from 'crypto';
+import { randomBytes, randomInt, createHash, timingSafeEqual } from 'crypto';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest, JWT_SECRET } from '../middleware/auth';
 import { SmsService } from '../services/sms.service';
 import { EmailService } from '../services/email.service';
 import { BRAND } from '../../config/brand';
 import { authLimiter } from '../middleware/rate-limit';
+import { dispatchLoginPush } from '../services/push.service';
 
 const router = Router();
 
@@ -197,6 +198,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
       },
       user.organizationId
     ).catch(err => console.warn('[Auth] Login success email send warning:', err.message));
+    dispatchLoginPush(user, req.headers['user-agent']);
 
     res.json({
       token,
@@ -223,21 +225,26 @@ router.post('/admin-login', authLimiter, async (req: Request, res: Response) => 
       return res.status(400).json({ error: 'Admin email and master key/password are required' });
     }
 
-    // Check if master credentials match (default: admin@marketmind.ai / admin123)
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { role: 'SUPER_ADMIN' },
-          { email: 'admin@marketmind.ai' }
-        ]
-      },
-      include: { organization: true },
-    });
+    // Master credentials .env se aate hain (MASTER_ADMIN_EMAIL / MASTER_ADMIN_PASSWORD).
+    // Production mein default admin123 allowed nahi hai.
+    const masterEmail = (process.env.MASTER_ADMIN_EMAIL || (process.env.NODE_ENV === 'production' ? '' : 'admin@marketmind.ai')).trim().toLowerCase();
+    const masterPassword = process.env.MASTER_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'admin123');
+    const inputEmail = String(email).trim().toLowerCase();
+    const sameStr = (a: string, b: string) => {
+      const ha = createHash('sha256').update(a).digest();
+      const hb = createHash('sha256').update(b).digest();
+      return timingSafeEqual(ha, hb);
+    };
+
+    if (!masterEmail || !masterPassword || !sameStr(inputEmail, masterEmail) || !sameStr(String(password), masterPassword)) {
+      return res.status(401).json({ error: 'Invalid administrator credentials. Access denied.' });
+    }
+
+    // Master admin ko exact email se dhundo, na mile to bana do, aur role SUPER_ADMIN pakka karo
+    let user = await prisma.user.findUnique({ where: { email: masterEmail }, include: { organization: true } });
 
     if (!user) {
-      // Auto-provision default Master Admin if not in DB yet
-      let org = await prisma.organization.findFirst({ where: { name: 'MarketMind HQ' } });
+      let org = await prisma.organization.findFirst({ where: { name: 'MarketMind HQ Master Admin' } });
       if (!org) {
         org = await prisma.organization.create({
           data: {
@@ -248,26 +255,22 @@ router.post('/admin-login', authLimiter, async (req: Request, res: Response) => 
           },
         });
       }
-
-      const passwordHash = await bcrypt.hash('admin123', 10);
       user = await prisma.user.create({
         data: {
-          email: 'admin@marketmind.ai',
-          passwordHash,
+          email: masterEmail,
+          passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10),
           name: 'Master Platform Admin',
           role: 'SUPER_ADMIN',
           organizationId: org.id,
         },
         include: { organization: true },
       });
-    }
-
-    // Verify password (allows admin123 or user's password)
-    const isMasterDefault = (email === 'admin@marketmind.ai' || email === 'admin') && password === 'admin123';
-    const isValid = isMasterDefault || (await bcrypt.compare(password, user.passwordHash));
-
-    if (!isValid && !isMasterDefault) {
-      return res.status(401).json({ error: 'Invalid administrator credentials. Access denied.' });
+    } else if (user.role !== 'SUPER_ADMIN') {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { role: 'SUPER_ADMIN' },
+        include: { organization: true },
+      });
     }
 
     const token = jwt.sign(
@@ -443,6 +446,7 @@ router.post('/google-login', authLimiter, async (req: Request, res: Response) =>
       },
       user.organizationId
     ).catch(err => console.warn('[Auth] Google login email warning:', err.message));
+    dispatchLoginPush(user, req.headers['user-agent']);
 
     res.json({
       success: true,
@@ -715,6 +719,7 @@ router.post('/otp/verify-reset', authLimiter, async (req: Request, res: Response
       },
       user.organizationId
     ).catch(err => console.warn('[Auth] OTP login email warning:', err.message));
+    dispatchLoginPush(user, req.headers['user-agent']);
 
     res.json({
       success: true,
@@ -989,6 +994,7 @@ router.post('/phone/verify-otp', authLimiter, async (req: Request, res: Response
         user.organizationId
       ).catch(err => console.warn('[Auth] Phone login email warning:', err.message));
     }
+    dispatchLoginPush(user, req.headers['user-agent']);
 
     res.json({
       success: true,
