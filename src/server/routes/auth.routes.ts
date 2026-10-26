@@ -14,24 +14,36 @@ const router = Router();
 
 router.post('/signup', authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, username, password, name, organizationName } = req.body;
-    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-    const normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    const { email, username, identifier, password, name, organizationName } = req.body;
+    // Signup accepts either an email or a username (or both); a single `identifier` is classified by "@".
+    const rawIdentifier = typeof identifier === 'string' ? identifier.trim().toLowerCase() : '';
+    let normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    let normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    if (rawIdentifier) {
+      if (rawIdentifier.includes('@')) normalizedEmail = normalizedEmail || rawIdentifier;
+      else normalizedUsername = normalizedUsername || rawIdentifier;
+    }
+    // The email column is required, so username-only accounts get a reserved placeholder address.
+    const hasRealEmail = Boolean(normalizedEmail);
+    if (!normalizedEmail && normalizedUsername) {
+      normalizedEmail = `${normalizedUsername}@users.addonaix.local`;
+    }
     const cleanName = typeof name === 'string' ? name.trim() : '';
     const cleanOrganizationName =
       typeof organizationName === 'string' ? organizationName.trim() : '';
 
-    if (!normalizedEmail || !normalizedUsername || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Email, username, and password are required.' });
+    if (!normalizedEmail || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Enter an email or username, and a password.' });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    if (hasRealEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       return res.status(400).json({ error: 'Enter a valid email address.' });
     }
-    if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(normalizedUsername)) {
+    if (normalizedUsername && !/^[a-z0-9][a-z0-9._-]{2,29}$/.test(normalizedUsername)) {
       return res.status(400).json({
         error: 'Username must be 3–30 characters and use only letters, numbers, dots, underscores, or hyphens.',
       });
     }
+    const displayLabel = normalizedUsername || normalizedEmail.split('@')[0];
     if (password.length < 8 || password.length > 128) {
       return res.status(400).json({ error: 'Password must be between 8 and 128 characters.' });
     }
@@ -41,13 +53,16 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
 
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email: normalizedEmail }, { username: normalizedUsername }],
+        OR: [
+          { email: normalizedEmail },
+          ...(normalizedUsername ? [{ username: normalizedUsername }] : []),
+        ],
       },
     });
     if (existingUser) {
       return res.status(409).json({
         error: existingUser.email === normalizedEmail
-          ? 'An account with this email already exists.'
+          ? hasRealEmail ? 'An account with this email already exists.' : 'That username is already taken.'
           : 'That username is already taken.',
       });
     }
@@ -55,7 +70,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const org = await prisma.organization.create({
       data: {
-        name: cleanOrganizationName || `${cleanName || normalizedUsername}'s Workspace`,
+        name: cleanOrganizationName || `${cleanName || displayLabel}'s Workspace`,
         plan: 'growth',
         aiTokensUsed: 0,
         aiTokensLimit: 600000,
@@ -65,9 +80,9 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
-        username: normalizedUsername,
+        username: normalizedUsername || null,
         passwordHash,
-        name: cleanName || normalizedUsername,
+        name: cleanName || displayLabel,
         role: 'ADMIN',
         organizationId: org.id,
       },
@@ -77,7 +92,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     await prisma.business.create({
       data: {
         organizationId: org.id,
-        name: cleanOrganizationName || cleanName || normalizedUsername,
+        name: cleanOrganizationName || cleanName || displayLabel,
         industry: 'Professional Services',
         websiteUrl: 'https://yourwebsite.com',
         description: 'Digital growth business profile for our company.',
@@ -99,21 +114,23 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     );
 
     // Dispatch welcome email (fire-and-forget, never blocks or fails signup)
-    const welcomeTemplate = EmailService.templates.welcome({
-      name: user.name,
-      email: user.email,
-      appName: BRAND.appName,
-      loginUrl: `${process.env.APP_URL || 'http://localhost:3000'}/login`,
-    });
-    EmailService.sendEmail({
-      to: user.email,
-      subject: welcomeTemplate.subject,
-      html: welcomeTemplate.html,
-      text: welcomeTemplate.text,
-      organizationId: org.id,
-    }).catch((err) => {
-      console.warn('[Auth] Welcome email dispatch error:', err.message);
-    });
+    if (hasRealEmail) {
+      const welcomeTemplate = EmailService.templates.welcome({
+        name: user.name,
+        email: user.email,
+        appName: BRAND.appName,
+        loginUrl: `${process.env.APP_URL || 'http://localhost:3000'}/login`,
+      });
+      EmailService.sendEmail({
+        to: user.email,
+        subject: welcomeTemplate.subject,
+        html: welcomeTemplate.html,
+        text: welcomeTemplate.text,
+        organizationId: org.id,
+      }).catch((err) => {
+        console.warn('[Auth] Welcome email dispatch error:', err.message);
+      });
+    }
 
     res.json({
       token,

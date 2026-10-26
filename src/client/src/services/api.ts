@@ -91,8 +91,7 @@ export class ApiClient {
   static googleLogin = (credential: string) =>
     this.request<any>('/auth/google-login', { method: 'POST', body: JSON.stringify({ credential }) });
   static signup = (data: {
-    email: string;
-    username: string;
+    identifier: string;
     password: string;
     name: string;
     organizationName?: string;

@@ -74,7 +74,7 @@ flowchart TD
 
     subgraph DataStorage["Data & State Layer"]
         PrismaORM["Prisma ORM (24 Relational Models)"]
-        Database[(SQLite)]
+        Database[(PostgreSQL)]
         AIMemory["Isolated Tenant AI Memory"]
     end
 
@@ -103,9 +103,13 @@ npm install
 cp .env.example .env
 ```
 
+Set `DATABASE_URL` in `.env` to a PostgreSQL connection string. For local
+development, start a local PostgreSQL instance or use a hosted PostgreSQL
+database. The same setting must be configured on the production API host.
+
 ### 3. Initialize Database & Seed Demo Data
 ```bash
-# Push Prisma schema to the local SQLite database
+# Create/update the PostgreSQL schema
 npm run db:push
 
 # Seed with verified realistic demo data (NexusFlow AI)
@@ -154,8 +158,8 @@ PORT=5000
 NODE_ENV=development
 APP_URL=http://localhost:5173
 
-# Local SQLite database
-DATABASE_URL="file:./dev.db"
+# PostgreSQL database (replace with your local/hosted connection string)
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public"
 
 # Authentication
 JWT_SECRET=your_super_secret_jwt_key_here
@@ -199,10 +203,11 @@ browser. In Google Cloud Console, open **APIs & Services → Credentials**, edit
 the OAuth 2.0 Client ID used by this app, and confirm its application type is
 **Web application**. Under **Authorized JavaScript origins**, add
 `http://localhost:5173` for local Vite development. For a deployed site, add its
-origin too (for example, `https://app.example.com`). Enter only the scheme and
-hostname plus an optional port—do not include `/login`, another path, or a
-trailing slash. Add `http://127.0.0.1:5173` separately only if you open the app
-using that host.
+origin too. For the current production site, add `https://addonaix.com`; add
+`https://www.addonaix.com` as a separate origin only if the site is also served
+from that hostname. Enter only the scheme and hostname plus an optional
+port—do not include `/login`, another path, or a trailing slash. Add
+`http://127.0.0.1:5173` separately only if you open the app using that host.
 
 Set `GOOGLE_CLIENT_ID` on the API server to the exact client ID of that same
 Web application OAuth client, then restart the local API or redeploy/restart
@@ -269,6 +274,19 @@ npm start
 The server serves the REST API on `/api/*` and delivers the static React client from `dist/client` for all other routes.
 
 ### Docker Deployment
+Configure `DATABASE_URL` on the API host. Before starting the deployment, run
+the schema command from the project checkout in an environment that can reach
+that PostgreSQL instance:
+
+```bash
+npm run db:push
+```
+
+Do not run this during the Docker image build: the database must be reachable
+from the deployment environment, and schema changes should be applied as an
+explicit deployment step. The application no longer uses or copies a local
+`dev.db` file.
+
 Create a `Dockerfile`:
 ```dockerfile
 FROM node:22-alpine AS builder
@@ -276,15 +294,15 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run db:push && npm run build
+RUN npm run db:generate && npm run build
 
 FROM node:22-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/dev.db ./dev.db
 EXPOSE 5000
 CMD ["npm", "start"]
 ```

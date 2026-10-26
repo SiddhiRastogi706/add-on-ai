@@ -1,5 +1,5 @@
 // Prisma Schema for MarketMind AI
-// The local development schema uses SQLite for zero-configuration setup.
+// Configure DATABASE_URL with a PostgreSQL connection string in development and production.
 
 generator client {
   provider = "prisma-client-js"

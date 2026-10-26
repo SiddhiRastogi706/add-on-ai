@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { ApiClient } from '../services/api';
 import { BRAND } from '@config/brand';
+import { MarketingTeamIllustration } from '../components/auth/MarketingTeamIllustration';
 import {
   ArrowRight,
+  BarChart3,
   ShieldCheck,
   Smartphone,
   CheckCircle2,
@@ -19,7 +21,10 @@ import {
   Eye,
   EyeOff,
   Flame,
+  Megaphone,
   PartyPopper,
+  Search,
+  Share2,
 } from 'lucide-react';
 
 interface GoogleCredentialResponse {
@@ -115,9 +120,13 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
       }
 
       if (mode === 'signup') {
-        const cleanUsername = username.trim().toLowerCase();
-        if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(cleanUsername)) {
-          throw new Error('Username must be 3–30 characters and use letters, numbers, dots, underscores, or hyphens.');
+        const cleanIdentifier = identifier.trim().toLowerCase();
+        if (cleanIdentifier.includes('@')) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanIdentifier)) {
+            throw new Error('Enter a valid email address.');
+          }
+        } else if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(cleanIdentifier)) {
+          throw new Error('Enter a valid email, or a username of 3–30 letters, numbers, dots, underscores, or hyphens.');
         }
         if (password.length < 8 || password.length > 128) {
           throw new Error('Password must be between 8 and 128 characters.');
@@ -127,8 +136,7 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
         }
         const result = await ApiClient.signup({
           name: name.trim(),
-          email: email.trim().toLowerCase(),
-          username: cleanUsername,
+          identifier: cleanIdentifier,
           password,
           organizationName: workspaceName.trim() || undefined,
         });
@@ -174,34 +182,46 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
         : 'Welcome back';
 
   const inputClassName =
-    'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100';
+    'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100';
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10 sm:px-6">
       <div className="mx-auto flex min-h-[80vh] max-w-5xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-3xl border border-slate-800 bg-white shadow-2xl lg:grid-cols-[0.9fr_1.1fr]">
-          <aside className="hidden flex-col justify-between bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-10 text-white lg:flex">
-            <div>
+          <aside className="relative hidden min-h-[600px] flex-col justify-between overflow-hidden bg-gradient-to-b from-white via-sky-50 to-indigo-100 p-7 text-slate-900 lg:flex xl:p-8">
+            <img
+              src="/auth-marketing-team.png"
+              alt="Marketing team planning campaigns together"
+              className="absolute inset-x-0 bottom-0 h-[64%] w-full object-cover"
+              style={{ objectPosition: '64% 50%' }}
+            />
+            <div aria-hidden="true" className="absolute inset-x-0 bottom-[56%] h-24 bg-gradient-to-b from-transparent to-transparent" />
+            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[48%] bg-gradient-to-b from-white via-white/90 to-transparent" />
+
+            <div className="relative z-10">
               <img
                 src="/addonaix-horizontal.png"
-                alt="AddonAIx"
-                className="mb-10 h-12 w-44 object-contain object-left"
+                alt="Addon AI"
+                className="mb-5 h-20 w-72 object-contain object-left"
               />
-              <h1 className="text-3xl font-black leading-tight">
-                Your growth workspace, on your terms.
+              <h1 className="max-w-md text-3xl font-black leading-[1.12] tracking-tight text-slate-900">
+                Make every marketing move{' '}
+                <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                  count.
+                </span>
               </h1>
-              <p className="mt-4 text-sm leading-6 text-slate-300">
-                Create your own username and password. Your password is securely hashed before it is stored.
+              <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
+                SEO, ads, social media and analytics, planned and run together by one AI growth team.
               </p>
             </div>
-            <div className="space-y-3 text-sm text-slate-300">
-              <p className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-400" /> One account for your team workspace</p>
-              <p className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Forgot-password recovery by email</p>
+
+            <div className="relative z-10 mt-6 rounded-xl border border-white/60 bg-white/70 px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur">
+              Plan smarter. Create, post and grow together.
             </div>
           </aside>
 
-          <main className="p-6 sm:p-10 lg:p-12">
-            <div className="mb-8 flex items-center justify-between gap-3">
+          <main className="p-5 sm:p-8 lg:p-9">
+            <div className="mb-5 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={onBack || (() => { window.location.href = '/'; })}
@@ -218,7 +238,7 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
               </button>
             </div>
 
-            <h2 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+            <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">{title}</h2>
             <p className="mt-2 text-sm text-slate-500">
               {isSignup
                 ? 'Set up your login details to get started.'
@@ -240,7 +260,7 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-4 space-y-3 [&_label>span:first-child]:text-[11px]">
               {isSignup && (
                 <>
                   <label className="block space-y-1.5">
@@ -255,30 +275,17 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
                     />
                   </label>
                   <label className="block space-y-1.5">
-                    <span className="text-xs font-bold text-slate-700">Username</span>
+                    <span className="text-xs font-bold text-slate-700">Email or username</span>
                     <input
                       required
-                      minLength={3}
-                      maxLength={30}
+                      maxLength={100}
                       autoComplete="username"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value.replace(/\s/g, '').toLowerCase())}
+                      value={identifier}
+                      onChange={(event) => setIdentifier(event.target.value.replace(/\s/g, ''))}
                       className={inputClassName}
-                      placeholder="Choose a unique username"
+                      placeholder="you@example.com or username"
                     />
-                    <span className="text-[11px] text-slate-400">3–30 characters: letters, numbers, dots, underscores, or hyphens.</span>
-                  </label>
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-bold text-slate-700">Email</span>
-                    <input
-                      required
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className={inputClassName}
-                      placeholder="you@example.com"
-                    />
+                    <span className="text-[11px] text-slate-400">Use an email, or a username (3–30 letters, numbers, . _ -).</span>
                   </label>
                   <label className="block space-y-1.5">
                     <span className="text-xs font-bold text-slate-700">Workspace name <span className="font-normal text-slate-400">(optional)</span></span>
@@ -381,7 +388,7 @@ const PasswordAuthForm: React.FC<PasswordAuthFormProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? 'Please wait…' : isSignup ? 'Create account' : isForgot ? 'Send reset code' : isReset ? 'Reset password' : 'Sign in'}
                 {!loading && <ArrowRight className="h-4 w-4" />}

@@ -53,7 +53,11 @@ import { globalLimiter } from './middleware/rate-limit';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+}));
 
 // Requirement 7: Canonical HTTPS & Non-WWW Redirection Middleware
 app.use((req, res, next) => {
