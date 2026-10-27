@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { ContentAgent } from '../ai/agents/content.agent';
 
@@ -31,7 +32,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/generate', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/generate', authMiddleware, chargeForFeature('content_generate'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, topic, contentType, targetKeyword } = req.body;
     const biz = await getTenantBusiness(req, businessId, res);

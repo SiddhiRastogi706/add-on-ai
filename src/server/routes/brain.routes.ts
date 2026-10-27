@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { runBackgroundAI } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { MarketingBrainOrchestrator } from '../ai/brain.orchestrator';
 
@@ -33,10 +34,12 @@ router.post('/sync', authMiddleware, async (req: AuthRequest, res: Response) => 
 
     const targetBizId = biz.id;
 
-    // Trigger in background
-    MarketingBrainOrchestrator.runFullOnboardingAnalysis(targetBizId).catch((e) =>
-      console.error('Error during manual brain sync:', e)
-    );
+    // Background mein; free plan par skip, paid par credit se charge
+    void runBackgroundAI(req.user!, 'brain_onboarding', () =>
+      MarketingBrainOrchestrator.runFullOnboardingAnalysis(targetBizId)
+    ).then((status) => {
+      if (status === 'skipped') console.log('[brain] manual sync skipped: AI automation is off for this plan');
+    });
 
     res.json({ success: true, message: 'Marketing Brain orchestrated cycle initiated.' });
   } catch (err: any) {

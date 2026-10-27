@@ -7,6 +7,7 @@ import { RazorpayService } from '../services/razorpay.service';
 import { CashfreeService } from '../services/cashfree.service';
 import { EmailService } from '../services/email.service';
 import { SAAS_PLANS } from '../../config/plans';
+import { grantFounderBonus, grantPlanCredit } from '../services/feature-billing.service';
 import { WalletService } from '../services/wallet.service';
 
 const router = Router();
@@ -114,8 +115,6 @@ router.post('/create-order', async (req: Request, res: Response) => {
           data: {
             name: `${name}'s Workspace`,
             plan: 'free',
-            aiTokensUsed: 0,
-            aiTokensLimit: 1000000,
           },
         });
         const newUser = await prisma.user.create({
@@ -629,7 +628,8 @@ async function activateSubscriptionPlan(params: {
     currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
   }
 
-  // 1. Update Payment status to PAID
+  // 1. Update Payment status to PAID (pehle se PAID ho to credit dobara nahi dena)
+  const alreadyPaid = (await prisma.payment.findUnique({ where: { id: params.paymentId }, select: { status: true } }))?.status === 'PAID';
   await prisma.payment.update({
     where: { id: params.paymentId },
     data: {
@@ -638,14 +638,17 @@ async function activateSubscriptionPlan(params: {
     },
   });
 
-  // 2. Update Organization plan & aiTokensLimit
+  // 2. Update Organization plan
   await prisma.organization.update({
     where: { id: params.organizationId },
-    data: {
-      plan: params.planId,
-      aiTokensLimit: plan.aiTokensPerMonth,
-    },
+    data: { plan: isSlot ? 'founder_slot' : params.planId },
   });
+
+  // 2b. Credits: renew par purana unused plan credit expire; slot par ek baar ka bonus
+  if (!alreadyPaid) {
+    if (isSlot) await grantFounderBonus(params.organizationId);
+    else await grantPlanCredit(params.organizationId, params.planId);
+  }
 
   // 3. Create Subscription record
   await prisma.subscription.create({

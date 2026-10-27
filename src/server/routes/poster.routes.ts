@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
-import { optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { prisma } from '../db';
 import { getAIProvider } from '../ai/factory';
@@ -118,7 +119,7 @@ router.post('/test-kling', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/generate', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/generate', authMiddleware, chargeForFeature('poster_prompt'), async (req: AuthRequest, res: Response) => {
   try {
     const {
       prompt,

@@ -72,9 +72,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
     const org = await prisma.organization.create({
       data: {
         name: cleanOrganizationName || `${cleanName || displayLabel}'s Workspace`,
-        plan: 'growth',
-        aiTokensUsed: 0,
-        aiTokensLimit: 600000,
+        plan: 'free',
       },
     });
 
@@ -387,9 +385,7 @@ router.post('/google-login', authLimiter, async (req: Request, res: Response) =>
         const organization = await prisma.organization.create({
           data: {
             name: `${verifiedName}'s Workspace`,
-            plan: 'growth',
-            aiTokensUsed: 0,
-            aiTokensLimit: 600000,
+            plan: 'free',
             users: {
               create: {
                 email: targetEmail,
@@ -900,9 +896,7 @@ router.post('/phone/verify-otp', authLimiter, async (req: Request, res: Response
       const org = await prisma.organization.create({
         data: {
           name: workspaceName,
-          plan: 'growth',
-          aiTokensUsed: 0,
-          aiTokensLimit: 600000,
+          plan: 'free',
         },
       });
 

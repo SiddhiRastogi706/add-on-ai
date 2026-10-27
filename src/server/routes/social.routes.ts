@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import axios from 'axios';
 import { prisma } from '../db';
 import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { SocialAgent } from '../ai/agents/social.agent';
 import { SocialPublishService } from '../services/social-publish.service';
@@ -85,7 +86,7 @@ router.get('/posts', optionalAuthMiddleware, async (req: AuthRequest, res: Respo
 });
 
 // Generate fresh 7-day social calendar
-router.post('/generate-calendar', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/generate-calendar', authMiddleware, chargeForFeature('social_calendar'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId } = req.body;
     const biz = await resolveBusiness(req, businessId);

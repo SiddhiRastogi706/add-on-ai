@@ -14,11 +14,16 @@ datasource db {
 model Organization {
   id              String         @id @default(cuid())
   name            String
-  plan            String         @default("growth")
+  plan            String         @default("free")
   aiTokensUsed    Int            @default(0)
   aiTokensLimit   Int            @default(600000)
   walletBalancePaise Int         @default(0)
   walletUsageRemainderPaise Float @default(0)
+  // Bonus aur plan credit alag buckets hain, dono expire hote hain aur withdraw/refund nahi hote
+  bonusPaise         Int         @default(0)
+  bonusExpiresAt     DateTime?
+  planCreditPaise    Int         @default(0)
+  planCreditExpiresAt DateTime?
   users           User[]
   businesses      Business[]
   subscriptions   Subscription[]
@@ -78,6 +83,51 @@ model PushBroadcast {
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Poster templates (admin upload karta hai, unlimited)
+model Template {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  category  String   @default("General")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  posters   Poster[]
+
+  @@index([active, category, createdAt])
+}
+
+// "Create from Photo" flow ke posters
+model Poster {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  itemName       String
+  description    String?
+  price          String?
+  itemImage      String
+  templateId     String
+  template       Template @relation(fields: [templateId], references: [id])
+  resultUrl      String?
+  caption        String?
+  status         String   @default("PENDING") // PENDING, READY, APPROVED, REJECTED, FAILED
+  error          String?
+  retryCount     Int      @default(0)
+  chargeId    String?
+  notifyUser     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+// S3 configure na ho to images yahin (DB) mein save hoti hain
+model MediaAsset {
+  id        String   @id @default(cuid())
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
 }
 
 model Business {
@@ -461,6 +511,59 @@ model WalletTransaction {
   createdAt       DateTime     @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+// Free demo counter: PER USER, group ("text" | "images" | "chat") ke hisaab se
+model DemoUsage {
+  id      String @id @default(cuid())
+  userId  String
+  group   String
+  count   Int    @default(0)
+
+  @@unique([userId, group])
+  @@map("demo_usage")
+}
+
+model DailyUsage {
+  id      String @id @default(cuid())
+  userId  String
+  feature String
+  date    String // YYYY-MM-DD (UTC)
+  count   Int    @default(0)
+
+  @@unique([userId, feature, date])
+  @@map("daily_usage")
+}
+
+// Org ka din ka estimated AI kharcha (cap enforce karne ke liye)
+model OrgAiCostDaily {
+  id         String @id @default(cuid())
+  orgId      String
+  date       String // YYYY-MM-DD (UTC)
+  costPaise  Int    @default(0)
+
+  @@unique([orgId, date])
+  @@map("org_ai_cost_daily")
+}
+
+// Har feature use ka ledger: kis bucket se kitna kata, taaki refund usi bucket mein wapas jaye
+model FeatureCharge {
+  id           String   @id @default(cuid())
+  orgId        String
+  userId       String
+  feature      String
+  kind         String   // DEMO | PAID
+  demoGroup    String?
+  bonusPaise   Int      @default(0)
+  planPaise    Int      @default(0)
+  walletPaise  Int      @default(0)
+  costPaise    Int      @default(0)
+  costDate     String?
+  status       String   @default("ACTIVE") // ACTIVE | REFUNDED
+  createdAt    DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@map("feature_charge")
 }
 
 model AdminAuditLog {

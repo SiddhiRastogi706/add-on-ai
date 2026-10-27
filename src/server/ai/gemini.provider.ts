@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { IAIProvider, AICompletionOptions } from './provider.interface';
 import { SmartMockProvider } from './smart-mock.provider';
-import { WalletBillingError, WalletService } from '../services/wallet.service';
 
 export class GeminiProvider implements IAIProvider {
   name = 'Google Gemini AI';
@@ -50,18 +49,8 @@ export class GeminiProvider implements IAIProvider {
     const modelsToTry = [selectedModel, ...this.fallbackModels.filter((m) => m !== selectedModel)];
     let lastError: any = null;
     const timeout = options?.timeout ?? 12000;
-    const organizationId = WalletService.currentOrganizationId();
 
     for (const model of modelsToTry) {
-      const reservation = organizationId
-        ? await WalletService.reserveAiUsage(
-            organizationId,
-            model,
-            Math.ceil((prompt.length + (systemPrompt?.length || 0)) / 2),
-            options?.maxTokens ?? 2048
-          )
-        : null;
-
       let response;
       try {
         response = await axios.post(`${this.getEndpoint(model)}?key=${this.apiKey}`, payload, {
@@ -69,7 +58,6 @@ export class GeminiProvider implements IAIProvider {
           timeout,
         });
       } catch (err: any) {
-        if (reservation) await WalletService.releaseAiUsage(reservation);
         lastError = err;
         const status = err.response?.status;
         const msg = err.response?.data?.error?.message || err.message;
@@ -91,27 +79,8 @@ export class GeminiProvider implements IAIProvider {
 
       const candidates = response.data?.candidates;
       if (candidates && candidates.length > 0) {
-        if (reservation) {
-          const usage = response.data?.usageMetadata;
-          const inputTokens = usage?.promptTokenCount;
-          const outputTokens = usage?.candidatesTokenCount;
-          if (!Number.isInteger(inputTokens) || !Number.isInteger(outputTokens)) {
-            await WalletService.releaseAiUsage(reservation);
-            throw new WalletBillingError(
-              'The AI provider did not return token usage, so this request could not be billed safely.'
-            );
-          }
-          try {
-            await WalletService.settleAiUsage(reservation, model, inputTokens, outputTokens);
-          } catch (billingError) {
-            await WalletService.releaseAiUsage(reservation);
-            throw billingError;
-          }
-        }
         return candidates[0].content?.parts?.[0]?.text || '';
       }
-
-      if (reservation) await WalletService.releaseAiUsage(reservation);
     }
 
     console.warn(`[GeminiProvider] All remote Gemini models temporarily busy or rate-limited. Falling back to internal heuristic engine.`);
@@ -137,7 +106,6 @@ export class GeminiProvider implements IAIProvider {
       
       return JSON.parse(cleaned) as T;
     } catch (err: any) {
-      if (err instanceof WalletBillingError) throw err;
       console.warn('[GeminiProvider] JSON generation parsing fallback:', err.message);
       // If parsing fails or generation fails, gracefully use SmartMock JSON
       const mock = new SmartMockProvider();

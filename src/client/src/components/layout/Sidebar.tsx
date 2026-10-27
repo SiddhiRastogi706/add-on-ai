@@ -15,7 +15,6 @@ import {
   Sparkles,
   CheckSquare,
   PieChart,
-  Layers,
   Settings,
   ShieldAlert,
   LogOut,
@@ -74,7 +73,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-rose-100 text-rose-800 animate-pulse',
     },
     { id: 'reports', label: 'Executive Reports', icon: PieChart, category: 'Operations' },
-    { id: 'integrations', label: 'Connected Accounts', icon: Layers, category: 'System' },
     { id: 'settings', label: 'SaaS & Settings', icon: Settings, category: 'System' },
     { id: 'admin', label: 'Admin Panel', icon: ShieldAlert, category: 'System', adminOnly: true },
   ];

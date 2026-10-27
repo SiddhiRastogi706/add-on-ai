@@ -1,12 +1,13 @@
 import { Router, Response } from 'express';
-import { optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { prisma } from '../db';
 import { getAIProvider } from '../ai/factory';
 
 const router = Router();
 
-router.post('/message', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/message', authMiddleware, chargeForFeature('copilot_chat'), async (req: AuthRequest, res: Response) => {
   try {
     const { message, history, businessId } = req.body;
     if (!message || typeof message !== 'string' || !message.trim()) {

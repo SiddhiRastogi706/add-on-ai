@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { runBackgroundAI } from '../services/feature-billing.service';
 import { MarketingBrainOrchestrator } from '../ai/brain.orchestrator';
 import { BudgetService } from '../services/budget.service';
 
@@ -133,10 +134,10 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res: Response) =
           data: { organizationId: orgId, ...businessData },
         });
 
-    // Run the complete initial AI onboarding analysis asynchronously
-    MarketingBrainOrchestrator.runFullOnboardingAnalysis(business.id).catch((e) =>
-      console.error('Error in background full onboarding analysis:', e)
-    );
+    // Initial AI onboarding analysis: free plan par skip, paid par credit se charge
+    if (req.user) {
+      void runBackgroundAI(req.user, 'brain_onboarding', () => MarketingBrainOrchestrator.runFullOnboardingAnalysis(business.id));
+    }
 
     res.json({
       success: true,

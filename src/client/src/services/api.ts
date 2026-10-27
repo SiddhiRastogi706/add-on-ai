@@ -21,6 +21,28 @@ export interface LocalCompetitorSearchResult {
   results: OpenStreetMapCompetitor[];
 }
 
+export interface PosterTemplate {
+  id: string;
+  imageUrl: string;
+  category: string;
+  createdAt: string;
+}
+
+export interface PhotoPoster {
+  id: string;
+  itemName: string;
+  description: string | null;
+  price: string | null;
+  templateId: string;
+  status: 'PENDING' | 'READY' | 'APPROVED' | 'REJECTED' | 'FAILED';
+  resultUrl: string | null;
+  caption: string | null;
+  error: string | null;
+  retryCount: number;
+  retriesLeft: number;
+  notifyUser: boolean;
+}
+
 export class ApiClient {
   private static getToken(): string | null {
     return localStorage.getItem('marketmind_token');
@@ -179,6 +201,49 @@ export class ApiClient {
     headline?: string;
     cta?: string;
   }) => this.request<any>('/social/publish-direct', { method: 'POST', body: JSON.stringify(data) });
+  // Poster Studio: Create from Photo
+  private static async formRequest<T>(endpoint: string, form: FormData, method = 'POST'): Promise<T> {
+    const token = this.getToken();
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || errBody.message || `Request failed (${response.status})`);
+    }
+    return response.json();
+  }
+  static getTemplates = (cursor?: string | null, category?: string) => {
+    const params = new URLSearchParams();
+    if (cursor) params.set('cursor', cursor);
+    if (category && category !== 'All') params.set('category', category);
+    return this.request<{ items: PosterTemplate[]; nextCursor: string | null }>(`/templates?${params.toString()}`);
+  };
+  static getTemplateCategories = () => this.request<string[]>('/templates/categories');
+  static createPhotoPoster = (form: FormData) => this.formRequest<PhotoPoster>('/posters/generate', form);
+  static getPhotoPoster = (id: string) => this.request<PhotoPoster>(`/posters/${id}`);
+  static approvePhotoPoster = (id: string) => this.request<PhotoPoster>(`/posters/${id}/approve`, { method: 'POST' });
+  static rejectPhotoPoster = (id: string) => this.request<PhotoPoster>(`/posters/${id}/reject`, { method: 'POST' });
+  static notifyPhotoPoster = (id: string) => this.request<{ success: boolean }>(`/posters/${id}/notify`, { method: 'POST' });
+  static downloadPhotoPoster = async (id: string): Promise<Blob> => {
+    const token = this.getToken();
+    const response = await fetch(`${API_BASE}/posters/${id}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Download failed. Please try again.');
+    return response.blob();
+  };
+  static adminListTemplates = (cursor?: string | null) =>
+    this.request<{ items: (PosterTemplate & { active: boolean })[]; nextCursor: string | null }>(
+      `/templates/admin/all${cursor ? `?cursor=${cursor}` : ''}`
+    );
+  static adminUploadTemplate = (form: FormData) => this.formRequest<PosterTemplate & { active: boolean }>('/templates/admin', form);
+  static adminUpdateTemplate = (id: string, data: { active?: boolean; category?: string }) =>
+    this.request<PosterTemplate & { active: boolean }>(`/templates/admin/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  static adminDeleteTemplate = (id: string) => this.request<{ success: boolean }>(`/templates/admin/${id}`, { method: 'DELETE' });
+
   static uploadSocialMedia = async (file: File): Promise<{ url: string; mediaType: 'image' | 'video' }> => {
     const token = this.getToken();
     const response = await fetch(`${API_BASE}/social/media`, {

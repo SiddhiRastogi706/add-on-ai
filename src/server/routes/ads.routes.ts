@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { AdsAgent } from '../ai/agents/ads.agent';
 import { BudgetService } from '../services/budget.service';
@@ -33,7 +34,7 @@ router.get('/campaigns', authMiddleware, async (req: AuthRequest, res: Response)
   }
 });
 
-router.post('/campaigns/generate', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/campaigns/generate', authMiddleware, chargeForFeature('ads_campaign'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, platform } = req.body;
     const biz = await getTenantBusiness(req, businessId, res);

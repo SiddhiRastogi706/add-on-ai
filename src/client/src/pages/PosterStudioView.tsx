@@ -25,6 +25,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ApiClient } from '../services/api';
+import { PhotoPosterFlow } from './PhotoPosterFlow';
 
 type AspectRatio = '1:1' | '9:16' | '16:9';
 type BackgroundMode = 'ai_photo' | 'gradient';
@@ -121,7 +122,7 @@ const THEMES: PosterTheme[] = [
   },
 ];
 
-export const PosterStudioView: React.FC = () => {
+const PromptPosterStudio: React.FC = () => {
   const { business } = useAuth();
 
   // Prompt input state
@@ -1254,6 +1255,46 @@ export const PosterStudioView: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+type StudioTab = 'prompt' | 'photo';
+
+export const PosterStudioView: React.FC = () => {
+  const [tab, setTab] = useState<StudioTab>('prompt');
+  const tabs: { id: StudioTab; label: string }[] = [
+    { id: 'prompt', label: 'One-Prompt Creator' },
+    { id: 'photo', label: 'Create from Photo' },
+  ];
+
+  return (
+    <div>
+      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-8 sm:pt-6">
+        <div role="tablist" aria-label="Poster creation mode" className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => setTab(item.id)}
+              className={`rounded-xl px-4 py-2 text-xs font-bold transition sm:text-sm ${
+                tab === item.id ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-orange-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === 'prompt' ? (
+        <PromptPosterStudio />
+      ) : (
+        <div className="p-4 sm:p-8">
+          <PhotoPosterFlow />
+        </div>
+      )}
     </div>
   );
 };

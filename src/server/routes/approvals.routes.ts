@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
-import { optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 
 const router = Router();
@@ -286,7 +287,7 @@ router.get('/', optionalAuthMiddleware, async (req: AuthRequest, res: Response) 
 });
 
 // POST /api/approvals/generate (Generate fresh approvals on demand)
-router.post('/generate', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/generate', authMiddleware, chargeForFeature('comment_triage'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId } = req.body;
     const biz = await resolveBusiness(req, businessId);
@@ -398,7 +399,7 @@ router.get('/recommendations', optionalAuthMiddleware, async (req: AuthRequest, 
 });
 
 // POST /api/approvals/recommendations/generate (Run Autonomous Audit & Generate fresh recs)
-router.post('/recommendations/generate', optionalAuthMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/recommendations/generate', authMiddleware, chargeForFeature('recommendations'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId } = req.body;
     const biz = await resolveBusiness(req, businessId);

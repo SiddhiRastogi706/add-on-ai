@@ -18,7 +18,6 @@ import { AutomationCenterView } from './pages/AutomationCenterView';
 import { RecommendationCenterView } from './pages/RecommendationCenterView';
 import { ApprovalsView } from './pages/ApprovalsView';
 import { ReportsView } from './pages/ReportsView';
-import { IntegrationsView } from './pages/IntegrationsView';
 import { SettingsView } from './pages/SettingsView';
 import { AdminPanelView } from './pages/AdminPanelView';
 import { PosterStudioView } from './pages/PosterStudioView';
@@ -235,8 +234,6 @@ export const App: React.FC = () => {
         return <ApprovalsView />;
       case 'reports':
         return <ReportsView />;
-      case 'integrations':
-        return <IntegrationsView />;
       case 'settings':
         return <SettingsView />;
       case 'admin':

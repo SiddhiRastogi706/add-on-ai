@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { chargeForFeature } from '../services/feature-billing.service';
 import { getTenantBusiness } from '../middleware/tenant';
 import { SeoAgent } from '../ai/agents/seo.agent';
 import { CrawlerService } from '../services/crawler.service';
@@ -70,7 +71,7 @@ router.get('/audit', authMiddleware, async (req: AuthRequest, res: Response) => 
 });
 
 // Run new live SEO crawl (multi-page with robots.txt & sitemap.xml)
-router.post('/audit/run', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/audit/run', authMiddleware, chargeForFeature('seo_audit'), async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, maxPages, websiteUrl } = req.body;
     const biz = await getTenantBusiness(req, businessId, res);
