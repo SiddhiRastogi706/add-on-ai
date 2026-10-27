@@ -17,7 +17,7 @@ interface GoogleTranslateWindow extends Window {
 
 const getSavedLanguage = (): AppLanguage => {
   if (typeof document === 'undefined') return 'en';
-  return document.cookie.split('; ').some((cookie) => cookie === 'googtrans=/en/hi') ? 'hi' : 'en';
+  return document.cookie.split('; ').some((cookie) => cookie.startsWith('googtrans=/') && cookie.endsWith('/hi')) ? 'hi' : 'en';
 };
 
 export const LanguageSwitcher: React.FC = () => {
@@ -71,10 +71,21 @@ export const LanguageSwitcher: React.FC = () => {
     setIsOpen(false);
     if (nextLanguage === language) return;
 
+    // Production par Google domain cookie (.addonaix.com) bhi banata hai, isliye sab variants clear karo
+    const host = window.location.hostname;
+    const bareHost = host.replace(/^www\./, '');
+    const domains = ['', host, `.${host}`, `.${bareHost}`, bareHost];
+    const expire = 'expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    const clearTranslateCookie = () => {
+      domains.forEach((domain) => {
+        const domainPart = domain ? `; domain=${domain}` : '';
+        document.cookie = `googtrans=; path=/${domainPart}; ${expire}; SameSite=Lax`;
+      });
+    };
+
+    clearTranslateCookie();
     if (nextLanguage === 'hi') {
       document.cookie = 'googtrans=/en/hi; path=/; max-age=31536000; SameSite=Lax';
-    } else {
-      document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     }
     document.documentElement.lang = nextLanguage;
     window.location.reload();
