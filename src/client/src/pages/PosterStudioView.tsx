@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { ApiClient } from '../services/api';
 import { PhotoPosterFlow } from './PhotoPosterFlow';
+import { OnePromptCreator } from './OnePromptCreator';
 
 type AspectRatio = '1:1' | '9:16' | '16:9';
 type BackgroundMode = 'ai_photo' | 'gradient';
@@ -1269,9 +1270,17 @@ export const PosterStudioView: React.FC = () => {
   ];
 
   return (
-    <div>
-      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-8 sm:pt-6">
-        <div role="tablist" aria-label="Poster creation mode" className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+    <div className={tab === 'prompt' ? 'min-h-screen bg-[#0d0b1c] text-white' : ''}>
+      <div className={`mx-auto max-w-7xl px-4 pt-4 sm:px-8 sm:pt-6 ${tab === 'prompt' ? 'max-w-6xl' : ''}`}>
+        <div
+          role="tablist"
+          aria-label="Poster creation mode"
+          className={`inline-flex p-1 ${
+            tab === 'prompt'
+              ? 'rounded-full border border-violet-400/20 bg-[#171432] shadow-lg shadow-violet-950/20'
+              : 'rounded-2xl border border-slate-200 bg-white shadow-sm'
+          }`}
+        >
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -1279,8 +1288,18 @@ export const PosterStudioView: React.FC = () => {
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => setTab(item.id)}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition sm:text-sm ${
-                tab === item.id ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-orange-500 text-white shadow' : 'text-slate-600 hover:bg-slate-50'
+              className={`px-4 py-2 text-xs font-bold transition sm:text-sm ${
+                tab === 'prompt'
+                  ? `rounded-full px-5 py-2.5 ${
+                      tab === item.id
+                        ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-orange-500 text-white shadow'
+                        : 'text-violet-200 hover:bg-white/5'
+                    }`
+                  : `rounded-xl ${
+                      tab === item.id
+                        ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-orange-500 text-white shadow'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`
               }`}
             >
               <span>{item.label}</span>
@@ -1289,7 +1308,7 @@ export const PosterStudioView: React.FC = () => {
         </div>
       </div>
       {tab === 'prompt' ? (
-        <PromptPosterStudio />
+        <OnePromptCreator />
       ) : (
         <div className="p-4 sm:p-8">
           <PhotoPosterFlow />

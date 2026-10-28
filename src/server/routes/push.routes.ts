@@ -10,6 +10,7 @@ import {
   getBroadcastsSentToday,
   isPushConfigured,
   MAX_PROMO_PER_DAY,
+  sendToTokens,
   subscribeTokensToAllUsers,
   unsubscribeTokenFromAllUsers,
 } from '../services/push.service';
@@ -40,6 +41,7 @@ const linkSchema = z
 const tokenSchema = z.object({
   token: z.string().trim().min(20).max(4096),
   adminAlerts: z.boolean().optional(),
+  welcome: z.boolean().optional(),
 });
 
 const broadcastSchema = z.object({
@@ -70,6 +72,13 @@ router.post('/token', authLimiter, authMiddleware, async (req: AuthRequest, res:
 
     if (isPushConfigured()) {
       subscribeTokensToAllUsers([parsed.data.token]).catch(() => undefined);
+    }
+
+    if (parsed.data.welcome && isPushConfigured()) {
+      sendToTokens([parsed.data.token], {
+        title: 'Addon AI',
+        body: '🎉 Congratulations! You are logged in to Addon AI.',
+      }).catch(() => undefined);
     }
 
     res.json({ success: true });

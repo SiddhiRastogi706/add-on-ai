@@ -16,17 +16,30 @@ export const PushPermissionPrompt: React.FC = () => {
   const { user } = useAuth();
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(false);
 
+  // Har login par in-app congratulation message (push block ho tab bhi dikhta hai)
   useEffect(() => {
-    // Admin ke liye alag "Enable Notifications" button hai
-    if (!user?.id || user.role === 'SUPER_ADMIN' || !isPushConfigured()) return;
+    if (!user?.id) return;
+    try {
+      if (sessionStorage.getItem('login_toast_shown') === user.id) return;
+      sessionStorage.setItem('login_toast_shown', user.id);
+    } catch {
+      // storage block ho to bhi dikha do
+    }
+    setToast(true);
+    const timer = window.setTimeout(() => setToast(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [user?.id]);
+  useEffect(() => {
+    if (!user?.id || !isPushConfigured()) return;
     let cancelled = false;
 
     isPushSupported().then((supported) => {
       if (cancelled || !supported) return;
       if (getPermission() === 'granted') {
         // Permission pehle se hai: chupchap token refresh karo
-        void syncPushToken();
+        void syncPushToken({ adminAlerts: user.role === 'SUPER_ADMIN' });
       } else if (shouldAskForPermission(user.id)) {
         setVisible(true);
       }
@@ -37,11 +50,20 @@ export const PushPermissionPrompt: React.FC = () => {
     };
   }, [user?.id, user?.role]);
 
-  if (!visible || !user) return null;
+  if (!user) return null;
+
+  const toastNode = toast ? (
+    <div className="fixed left-1/2 top-4 z-[80] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-emerald-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-2xl">
+      🎉 Congratulations! You are logged in to Addon AI.
+    </div>
+  ) : null;
+
+  if (!visible) return toastNode;
 
   const handleAllow = async () => {
     setBusy(true);
-    await requestPushPermission();
+    // Admin ka token admin-alert ke liye bhi save hota hai
+    await requestPushPermission({ adminAlerts: user.role === 'SUPER_ADMIN' });
     setBusy(false);
     // Block hua to browser "denied" yaad rakhta hai, isliye dobara nahi poochhenge
     setVisible(false);
@@ -53,6 +75,8 @@ export const PushPermissionPrompt: React.FC = () => {
   };
 
   return (
+    <>
+    {toastNode}
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
@@ -82,5 +106,6 @@ export const PushPermissionPrompt: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };

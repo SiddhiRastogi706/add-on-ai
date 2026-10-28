@@ -218,21 +218,28 @@ done in Google Cloud Console.
 
 ### Local competitor analysis setup
 
-The local competitor page uses OpenStreetMap's public Nominatim geocoder and
-Overpass service to return live mapped business names, categories, addresses,
-websites (when mapped), and approximate distance. It needs no paid API key.
-Searches are authenticated and rate-limited; results are not persisted, and
-geocoding requests are serialized and briefly cached in process. Public
-community services are shared resources with usage limits and no uptime
-guarantee. If the primary Overpass endpoint is busy, the backend tries two
-compatible public mirrors, then searches mapped place names via Nominatim. The
-fallback is a smaller name-based search and may return fewer listings.
-`OSM_NOMINATIM_URL` and `OSM_OVERPASS_URL` can be set to compatible providers if
-the defaults need to be changed. Set `OSM_CONTACT_EMAIL` to a
-maintainer contact for the identifying geocoder User-Agent in production. The
-built-in throttle is per backend process; keep a single backend instance when
-using the public endpoints, or use a shared distributed throttle and compatible
-provider before scaling horizontally.
+Competitor Intel uses Serper.dev Google Search when `SERPER_API_KEY` is
+configured on the API server. It returns live organic search results for the
+requested business type and location. The key stays server-side and must not be
+added to a `VITE_*` variable. Without a Serper.dev key, search falls back to
+OpenStreetMap's public Nominatim geocoder and Overpass service, which returns
+mapped business names, categories, addresses, websites (when mapped), and
+approximate distance. Searches are authenticated and rate-limited; results are
+not persisted, and OpenStreetMap geocoding requests are serialized and briefly
+cached in process. Public community services are shared resources with usage
+limits and no uptime guarantee. If the primary Overpass endpoint is busy, the
+backend tries two compatible public mirrors, then searches mapped place names
+via Nominatim. The fallback is a smaller name-based search and may return
+fewer listings.
+
+Set `SERPER_API_KEY` in the server `.env` or production API environment to use
+Serper.dev. `OSM_NOMINATIM_URL` and `OSM_OVERPASS_URL` can be set to compatible
+providers when the fallback defaults need to be changed. Set
+`OSM_CONTACT_EMAIL` to a maintainer contact for the identifying geocoder
+User-Agent in production. The OpenStreetMap throttle is per backend process;
+keep a single backend instance when using the public endpoints, or use a
+shared distributed throttle and compatible provider before scaling
+horizontally.
 
 OpenStreetMap does not provide Google ratings, reviews, or photos; the UI does
 not invent or estimate them. Results require OpenStreetMap attribution, and

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   ExternalLink,
-  Info,
   Loader2,
   MapPin,
   Search,
@@ -67,12 +66,14 @@ export const CompetitorView: React.FC = () => {
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-5 sm:p-8">
       <header>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-600">Free local market lookup</p>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-600">Competitor Intel</p>
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
           Competitor Analysis
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Find nearby businesses listed on OpenStreetMap and compare their mapped business type, address and distance.
+          {provider === 'Serper.dev'
+            ? 'Find businesses in your market using live Google Search results.'
+            : 'Find nearby businesses listed on OpenStreetMap and compare their mapped business type, address and distance.'}
         </p>
       </header>
 
@@ -109,13 +110,6 @@ export const CompetitorView: React.FC = () => {
         </button>
       </form>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <p className="leading-relaxed">
-          Search uses real, community-mapped OpenStreetMap records and needs no paid API key. OpenStreetMap does not provide Google ratings, review counts or photos, so these are not shown or guessed. Mapped businesses may be incomplete.
-        </p>
-      </div>
-
       {error && (
         <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -126,7 +120,9 @@ export const CompetitorView: React.FC = () => {
       {loading && (
         <div className="flex items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-white p-12 text-sm font-semibold text-slate-600">
           <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
-          Looking up the area and nearby mapped businesses…
+          {provider === 'Serper.dev'
+            ? 'Searching live Google results…'
+            : 'Looking up the area and nearby mapped businesses…'}
         </div>
       )}
 
@@ -135,7 +131,8 @@ export const CompetitorView: React.FC = () => {
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-lg font-extrabold text-slate-900">
-                {searchResult.results.length} mapped businesses found
+                {searchResult.results.length}{' '}
+                {searchResult.source === 'OpenStreetMap' ? 'mapped businesses found' : 'search results found'}
               </h2>
               <p className="mt-1 text-xs text-slate-500">
                 {searchResult.businessType} · Search area: {searchResult.location}
@@ -146,52 +143,85 @@ export const CompetitorView: React.FC = () => {
             </span>
           </div>
 
-          {searchResult.results.map((competitor) => (
-            <article key={competitor.osmId} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                <div className="min-w-0">
-                  <h3 className="text-lg font-extrabold text-slate-900">{competitor.name}</h3>
-                  <p className="mt-1 text-xs font-semibold capitalize text-brand-700">{competitor.category}</p>
-                  <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-600">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    {competitor.address}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 sm:min-w-32 sm:text-center">
-                  <p className="text-lg font-extrabold text-slate-900">{competitor.distanceKm} km</p>
-                  <p className="mt-1 text-[10px] font-semibold text-slate-500">from search location</p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-4">
-                {competitor.website && (
-                  <a href={competitor.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:underline">
-                    Website <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                )}
-                <a href={competitor.mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:underline">
-                  View OpenStreetMap record <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-                <span className="text-[11px] text-slate-500">Ratings, reviews and photos: not provided by this source</span>
-              </div>
-            </article>
-          ))}
+          {searchResult.source === 'Serper.dev'
+            ? searchResult.results.map((competitor) => (
+                <article key={`${competitor.position}-${competitor.url}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                      #{competitor.position}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-extrabold text-slate-900">{competitor.name}</h3>
+                      {competitor.snippet && (
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{competitor.snippet}</p>
+                      )}
+                      <a href={competitor.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 break-all text-xs font-bold text-brand-700 hover:underline">
+                        Visit result <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              ))
+            : searchResult.results.map((competitor) => (
+                <article key={competitor.osmId} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-extrabold text-slate-900">{competitor.name}</h3>
+                      <p className="mt-1 text-xs font-semibold capitalize text-brand-700">{competitor.category}</p>
+                      <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-600">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        {competitor.address}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3 sm:min-w-32 sm:text-center">
+                      <p className="text-lg font-extrabold text-slate-900">{competitor.distanceKm} km</p>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-500">from search location</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-4">
+                    {competitor.website && (
+                      <a href={competitor.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:underline">
+                        Website <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                    <a href={competitor.mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:underline">
+                      View OpenStreetMap record <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                    <span className="text-[11px] text-slate-500">Ratings, reviews and photos: not provided by this source</span>
+                  </div>
+                </article>
+              ))}
 
           {searchResult.results.length === 0 && (
             <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
               <Search className="mx-auto h-8 w-8 text-slate-300" />
-              <h3 className="mt-3 font-bold text-slate-800">No matching mapped businesses found</h3>
+              <h3 className="mt-3 font-bold text-slate-800">
+                {searchResult.source === 'OpenStreetMap'
+                  ? 'No matching mapped businesses found'
+                  : 'No search results found'}
+              </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Try a mapped category such as dentist, lawyer, restaurant, cafe, pharmacy, logistics or transport.
+                {searchResult.source === 'OpenStreetMap'
+                  ? 'Try a mapped category such as dentist, lawyer, restaurant, cafe, pharmacy, logistics or transport.'
+                  : 'Try a different business type or location.'}
               </p>
             </div>
           )}
 
-          <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-            Search results are not stored. OpenStreetMap is community-maintained and may not include every business. The public geocoder and query service are shared resources, rate-limited and provided without an uptime guarantee. The distance shown is approximate from the selected area's map center.
-          </p>
-          <p className="text-xs text-slate-500">
-            Data source: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2" translate="no">{searchResult.attribution}</a>
-          </p>
+          {searchResult.source === 'OpenStreetMap' ? (
+            <>
+              <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+                Search results are not stored. OpenStreetMap is community-maintained and may not include every business. The public geocoder and query service are shared resources, rate-limited and provided without an uptime guarantee. The distance shown is approximate from the selected area's map center.
+              </p>
+              <p className="text-xs text-slate-500">
+                Data source: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2" translate="no">{searchResult.attribution}</a>
+              </p>
+            </>
+          ) : (
+            <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+              Search results are not stored. Results reflect the search provider's ranking and may change over time.
+            </p>
+          )}
         </section>
       )}
     </main>

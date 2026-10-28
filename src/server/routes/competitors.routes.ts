@@ -3,6 +3,7 @@ import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middlewa
 import { openStreetMapSearchLimiter } from '../middleware/rate-limit';
 import { getTenantBusiness } from '../middleware/tenant';
 import { OpenStreetMapError, OpenStreetMapService } from '../services/openstreetmap.service';
+import { SerperError, SerperService } from '../services/serper.service';
 import { prisma } from '../db';
 
 const router = Router();
@@ -20,8 +21,8 @@ async function resolveBusiness(req: AuthRequest, businessId?: string) {
 
 router.get('/local-config', (_req, res) => {
   res.json({
-    configured: OpenStreetMapService.isConfigured(),
-    provider: 'OpenStreetMap',
+    configured: SerperService.isConfigured() || OpenStreetMapService.isConfigured(),
+    provider: SerperService.isConfigured() ? 'Serper.dev' : 'OpenStreetMap',
   });
 });
 
@@ -44,16 +45,18 @@ router.post('/local-search', authMiddleware, openStreetMapSearchLimiter, async (
   }
 
   try {
-    const results = await OpenStreetMapService.searchCompetitors(
-      businessType.trim(),
-      location.trim()
-    );
+    const results = SerperService.isConfigured()
+      ? await SerperService.searchCompetitors(businessType.trim(), location.trim())
+      : await OpenStreetMapService.searchCompetitors(businessType.trim(), location.trim());
     res.json(results);
   } catch (error) {
+    if (error instanceof SerperError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     if (error instanceof OpenStreetMapError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    console.error('[CompetitorsRoute] OpenStreetMap search failed:', error);
+    console.error('[CompetitorsRoute] Competitor search failed:', error);
     return res.status(500).json({ error: 'Local competitor search failed unexpectedly.' });
   }
 });

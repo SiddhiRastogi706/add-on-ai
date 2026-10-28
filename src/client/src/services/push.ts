@@ -52,6 +52,19 @@ export function shouldAskForPermission(userId: string): boolean {
   }
 }
 
+// Har login session mein welcome sirf ek baar (refresh par dobara nahi); logout par reset hota hai
+const WELCOME_KEY = 'login_welcome_shown';
+
+export function claimLoginWelcome(): boolean {
+  try {
+    if (sessionStorage.getItem(WELCOME_KEY)) return false;
+    sessionStorage.setItem(WELCOME_KEY, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function registerServiceWorker(): Promise<ServiceWorkerRegistration> {
   await navigator.serviceWorker.register('/firebase-messaging-sw.js');
   return navigator.serviceWorker.ready;
@@ -70,7 +83,7 @@ export async function syncPushToken(options: { adminAlerts?: boolean } = {}): Pr
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
     if (!token) return 'error';
 
-    await ApiClient.savePushToken(token, options.adminAlerts);
+    await ApiClient.savePushToken(token, options.adminAlerts, claimLoginWelcome());
     localStorage.setItem(TOKEN_KEY, token);
     return 'enabled';
   } catch (error) {
@@ -92,6 +105,12 @@ export async function requestPushPermission(options: { adminAlerts?: boolean } =
 
 // Logout par is device ka token hata do taaki purane user ko notification na jaye
 export async function removePushToken(): Promise<void> {
+  try {
+    sessionStorage.removeItem(WELCOME_KEY);
+    sessionStorage.removeItem('login_toast_shown');
+  } catch {
+    // ignore
+  }
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return;
   try {

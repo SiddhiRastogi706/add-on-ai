@@ -160,6 +160,7 @@ export const App: React.FC = () => {
           }}
         />
         <CopilotWidget />
+        <PushPermissionPrompt />
       </>
     );
   }
@@ -190,16 +191,19 @@ export const App: React.FC = () => {
   // View: Onboarding Wizard
   if (currentView === 'onboarding') {
     return (
-      <OnboardingWizard
-        onComplete={() => {
-          try {
-            if (user?.id) localStorage.setItem(`business_setup_complete_${user.id}`, 'true');
-          } catch (error) {
-            console.warn('Could not remember business setup completion:', error);
-          }
-          setCurrentView('dashboard');
-        }}
-      />
+      <>
+        <OnboardingWizard
+          onComplete={() => {
+            try {
+              if (user?.id) localStorage.setItem(`business_setup_complete_${user.id}`, 'true');
+            } catch (error) {
+              console.warn('Could not remember business setup completion:', error);
+            }
+            setCurrentView('dashboard');
+          }}
+        />
+        <PushPermissionPrompt />
+      </>
     );
   }
 

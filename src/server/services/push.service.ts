@@ -187,10 +187,7 @@ export function dispatchLoginPush(user: LoginUser, userAgent: string | undefined
         });
       }
 
-      await sendToUser(user.id, {
-        title: 'Addon AI',
-        body: `✅ Login successful! Welcome back, ${user.name}`,
-      });
+      // User ko welcome push device token save hone par jaata hai (POST /api/push/token, welcome=true)
     } catch (err: any) {
       console.warn('[Push] Login notification fail hua:', err.message);
     }

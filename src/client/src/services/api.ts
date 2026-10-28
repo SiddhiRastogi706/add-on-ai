@@ -12,14 +12,29 @@ export interface OpenStreetMapCompetitor {
   mapUrl: string;
 }
 
-export interface LocalCompetitorSearchResult {
+export interface SerperCompetitor {
+  position: number;
+  name: string;
+  url: string;
+  snippet: string;
+}
+
+interface CompetitorSearchResultBase {
   businessType: string;
   location: string;
   searchedAt: string;
-  source: string;
   attribution: string;
-  results: OpenStreetMapCompetitor[];
 }
+
+export type LocalCompetitorSearchResult =
+  | (CompetitorSearchResultBase & {
+      source: 'OpenStreetMap';
+      results: OpenStreetMapCompetitor[];
+    })
+  | (CompetitorSearchResultBase & {
+      source: 'Serper.dev';
+      results: SerperCompetitor[];
+    });
 
 export interface PosterTemplate {
   id: string;
@@ -423,8 +438,8 @@ export class ApiClient {
 
   // Admin
   static getAdminMetrics = () => this.request<any>('/admin/metrics');
-  static savePushToken = (token: string, adminAlerts?: boolean) =>
-    this.request<any>('/push/token', { method: 'POST', body: JSON.stringify({ token, adminAlerts }) });
+  static savePushToken = (token: string, adminAlerts?: boolean, welcome?: boolean) =>
+    this.request<any>('/push/token', { method: 'POST', body: JSON.stringify({ token, adminAlerts, welcome }) });
   static deletePushToken = (token: string) =>
     this.request<any>('/push/token', { method: 'DELETE', body: JSON.stringify({ token }) });
   static getPushOverview = () => this.request<any>('/push/admin/overview');
