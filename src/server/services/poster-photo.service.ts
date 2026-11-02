@@ -87,6 +87,50 @@ async function callGeminiImage(prompt: string, photo: { buffer: Buffer; mimeType
   }
 }
 
+// Stability style-transfer: user ki photo content deti hai, template poster ka look/colors deta hai
+export async function callStabilityPhotoPoster(
+  prompt: string,
+  photo: { buffer: Buffer; mimeType: string },
+  template: { buffer: Buffer; mimeType: string }
+) {
+  const apiKey = process.env.STABILITY_API_KEY;
+  if (!apiKey) throw new Error('STABILITY_API_KEY is not configured');
+
+  const form = new FormData();
+  form.append('init_image', new Blob([new Uint8Array(photo.buffer)], { type: photo.mimeType }), 'photo');
+  form.append('style_image', new Blob([new Uint8Array(template.buffer)], { type: template.mimeType }), 'template');
+  form.append('prompt', prompt.slice(0, 10_000));
+  form.append('negative_prompt', 'blurry, distorted text, misspelled text, watermark, low quality');
+  form.append('composition_fidelity', '0.9');
+  form.append('output_format', 'png');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GENERATION_TIMEOUT_MS);
+  try {
+    const response = await fetch('https://api.stability.ai/v2beta/stable-image/control/style-transfer', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'image/*' },
+      body: form,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const body: any = await response.json().catch(() => ({}));
+      const detail = Array.isArray(body?.errors) ? body.errors.join('; ') : body?.message;
+      throw new Error(`Stability API error (${response.status})${detail ? `: ${String(detail).slice(0, 160)}` : ''}`);
+    }
+    const mimeType = (response.headers.get('content-type') || 'image/png').split(';')[0];
+    if (!mimeType.startsWith('image/')) throw new Error('Stability did not return an image');
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) throw new Error('Stability returned an empty image');
+    return { buffer, mimeType };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('Generation timed out after 60 seconds');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function generateCaption(input: { itemName: string; description?: string | null; price?: string | null; business: string }) {
   const fallback = [
     `✨ ${input.itemName}${input.price ? ` — ${input.price}` : ''}`,
@@ -147,15 +191,27 @@ export async function runGeneration(posterId: string, attempt: number, organizat
       MediaService.loadImage(poster.template.imageUrl),
     ]);
 
+    // Stability pehle (key ho to), Gemini fallback; POSTER_PHOTO_ENGINE=gemini|stability se force kar sakte ho
+    const forced = process.env.POSTER_PHOTO_ENGINE;
+    const engines: Array<'stability' | 'gemini'> = [];
+    if (forced !== 'gemini' && process.env.STABILITY_API_KEY) engines.push('stability');
+    if (forced !== 'stability' && process.env.GEMINI_API_KEY) engines.push('gemini');
+    if (!engines.length) engines.push(forced === 'stability' ? 'stability' : 'gemini');
+
     let result: { buffer: Buffer; mimeType: string } | null = null;
     let lastError: any;
-    for (let tryNo = 0; tryNo < 2 && !result; tryNo++) {
-      try {
-        result = await callGeminiImage(prompt, photo, template);
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[poster] ${posterId} generation attempt ${tryNo + 1} failed:`, err?.message);
+    for (const engine of engines) {
+      for (let tryNo = 0; tryNo < 2 && !result; tryNo++) {
+        try {
+          result = engine === 'stability'
+            ? await callStabilityPhotoPoster(prompt, photo, template)
+            : await callGeminiImage(prompt, photo, template);
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[poster] ${posterId} ${engine} attempt ${tryNo + 1} failed:`, err?.message);
+        }
       }
+      if (result) break;
     }
     if (!result) throw lastError || new Error('Generation failed');
 

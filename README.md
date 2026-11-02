@@ -171,6 +171,10 @@ AI_PROVIDER=auto
 GEMINI_API_KEY=
 OPENAI_API_KEY=
 
+# Optional prompt-based image generation (server-only; select core or ultra)
+STABILITY_API_KEY=
+STABILITY_MODEL=core
+
 # Phone OTP provider: StartMessaging uses an X-API-Key header.
 SMS_PROVIDER=startmessaging
 SMS_GATEWAY_URL=https://api.startmessaging.com/otp/send

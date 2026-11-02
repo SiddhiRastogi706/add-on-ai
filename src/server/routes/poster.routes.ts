@@ -17,12 +17,14 @@ interface PosterPromptRequest {
   imageMode?: 'gradient' | 'ai_photo';
   realismStyle?: 'google_flow_real' | 'commercial_photo' | 'luxury_editorial' | 'golden_hour';
   lighting?: 'natural_daylight' | 'golden_hour' | 'studio_softbox' | 'ambient';
-  engine?: 'kling' | 'google_flow' | 'auto';
+  engine?: 'kling' | 'google_flow' | 'stability' | 'auto';
   klingApiKey?: string;
 }
 
 const KLING_BASE_URL = process.env.KLING_BASE_URL || 'https://api-singapore.klingai.com';
 const DEFAULT_KLING_API_KEY = process.env.KLING_API_KEY || '';
+const STABILITY_API_KEY = process.env.STABILITY_API_KEY || '';
+const STABILITY_MODEL = process.env.STABILITY_MODEL || 'core';
 
 // Helper to query Kling AI image generation
 async function callKlingImageApi(prompt: string, aspectRatio: string = '1:1', apiKey?: string) {
@@ -75,6 +77,59 @@ async function callKlingImageApi(prompt: string, aspectRatio: string = '1:1', ap
     }
   } catch (err: any) {
     return { success: false, error: err.message };
+  }
+}
+
+async function callStabilityImageApi(prompt: string, aspectRatio: string) {
+  if (!STABILITY_API_KEY) return { success: false, reason: 'no_api_key' } as const;
+  if (STABILITY_MODEL !== 'core' && STABILITY_MODEL !== 'ultra') {
+    return { success: false, reason: 'invalid_model' } as const;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
+  try {
+    const form = new FormData();
+    form.append('prompt', prompt.slice(0, 10_000));
+    form.append('aspect_ratio', aspectRatio);
+    form.append('output_format', 'png');
+
+    const response = await fetch(
+      `https://api.stability.ai/v2beta/stable-image/generate/${STABILITY_MODEL}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${STABILITY_API_KEY}`,
+          Accept: 'image/*',
+        },
+        body: form,
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      console.warn('[StabilityProvider] Image generation failed:', response.status, errorBody?.errors || errorBody?.message);
+      return { success: false, reason: 'api_error' } as const;
+    }
+
+    const mimeType = response.headers.get('content-type')?.split(';')[0] || 'image/png';
+    if (!mimeType.startsWith('image/')) {
+      console.warn('[StabilityProvider] Expected image response, received:', mimeType);
+      return { success: false, reason: 'invalid_response' } as const;
+    }
+
+    const image = Buffer.from(await response.arrayBuffer());
+    if (!image.length) return { success: false, reason: 'empty_response' } as const;
+    return {
+      success: true,
+      imageUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+    } as const;
+  } catch (err: any) {
+    console.warn('[StabilityProvider] Image generation request failed:', err?.message || 'Unknown error');
+    return { success: false, reason: err?.name === 'AbortError' ? 'timeout' : 'request_error' } as const;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -250,25 +305,51 @@ You must return valid JSON ONLY with these exact fields:
       imgHeight = 720;
     }
 
-    // Attempt Kling AI generation if key provided or active
+    // Prefer Stability for auto requests; Kling remains the selected engine when explicitly requested.
     let aiImageUrl = '';
     let generatorEngine = 'Google Flow Photorealism (ImageFX Engine)';
     let klingStatus: any = null;
+    let stabilityStatus: any = null;
 
     const activeKlingKey = klingApiKey || DEFAULT_KLING_API_KEY;
-    if (activeKlingKey && (engine === 'kling' || engine === 'auto')) {
-      const klingRes = await callKlingImageApi(flowRealisticPrompt, aspectRatio, activeKlingKey);
-      if (klingRes.success && klingRes.imageUrl) {
-        aiImageUrl = klingRes.imageUrl;
-        generatorEngine = 'Kling AI Singapore Cloud';
-        klingStatus = { success: true, taskId: klingRes.taskId };
+    const canUseStability = engine !== 'google_flow' && Boolean(STABILITY_API_KEY);
+    if (canUseStability && (engine === 'auto' || engine === 'stability')) {
+      const stabilityResult = await callStabilityImageApi(flowRealisticPrompt, aspectRatio);
+      if (stabilityResult.success) {
+        aiImageUrl = stabilityResult.imageUrl;
+        generatorEngine = `Stability AI ${STABILITY_MODEL}`;
+        stabilityStatus = { success: true };
       } else {
-        klingStatus = {
-          success: false,
-          code: klingRes.code,
-          message: klingRes.message,
-          fallbackReason: klingRes.code === 1102 ? 'Kling balance empty (code 1102) -> auto-switched to Google Flow' : 'Kling API standby -> auto-switched to Google Flow'
-        };
+        stabilityStatus = { success: false, reason: stabilityResult.reason };
+      }
+    }
+
+    if (activeKlingKey && (engine === 'kling' || engine === 'auto')) {
+      if (!aiImageUrl) {
+        const klingRes = await callKlingImageApi(flowRealisticPrompt, aspectRatio, activeKlingKey);
+        if (klingRes.success && klingRes.imageUrl) {
+          aiImageUrl = klingRes.imageUrl;
+          generatorEngine = 'Kling AI Singapore Cloud';
+          klingStatus = { success: true, taskId: klingRes.taskId };
+        } else {
+          klingStatus = {
+            success: false,
+            code: klingRes.code,
+            message: klingRes.message,
+            fallbackReason: klingRes.code === 1102 ? 'Kling balance empty (code 1102) -> auto-switched to Google Flow' : 'Kling API standby -> auto-switched to Google Flow'
+          };
+        }
+      }
+    }
+
+    if (!aiImageUrl && canUseStability && engine !== 'stability' && !stabilityStatus) {
+      const stabilityResult = await callStabilityImageApi(flowRealisticPrompt, aspectRatio);
+      if (stabilityResult.success) {
+        aiImageUrl = stabilityResult.imageUrl;
+        generatorEngine = `Stability AI ${STABILITY_MODEL}`;
+        stabilityStatus = { success: true };
+      } else {
+        stabilityStatus = { success: false, reason: stabilityResult.reason };
       }
     }
 
@@ -290,12 +371,20 @@ You must return valid JSON ONLY with these exact fields:
         'posters',
         filename
       );
-      const uploadRes = await StorageService.uploadFromUrl(
-        aiImageUrl,
-        storageKey,
-        'image/png',
-        req.user?.organizationId
-      );
+      const dataImage = aiImageUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+      const uploadRes = dataImage
+        ? await StorageService.uploadBuffer(
+            storageKey,
+            Buffer.from(dataImage[2], 'base64'),
+            dataImage[1],
+            req.user?.organizationId
+          )
+        : await StorageService.uploadFromUrl(
+            aiImageUrl,
+            storageKey,
+            'image/png',
+            req.user?.organizationId
+          );
       if (uploadRes.success && uploadRes.url) {
         aiImageUrl = uploadRes.url;
       }
@@ -315,6 +404,7 @@ You must return valid JSON ONLY with these exact fields:
       aiImageUrl,
       generatorEngine,
       klingStatus,
+      stabilityStatus,
       rationale: posterSpec.rationale || 'Engineered with Kling AI & Google Flow authentic camera realism.',
       videoAdScript: posterSpec.videoAdScript || {
         hook: `Kya aap bhi dhoond rahe hain best ${businessIndustry}?`,

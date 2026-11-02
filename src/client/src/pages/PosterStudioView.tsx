@@ -163,7 +163,7 @@ const PromptPosterStudio: React.FC = () => {
   const [klingApiKey, setKlingApiKey] = useState(
     localStorage.getItem('kling_api_key') || ''
   );
-  const [generatorEngine, setGeneratorEngine] = useState<'kling' | 'google_flow'>('kling');
+  const [generatorEngine, setGeneratorEngine] = useState<'auto' | 'kling' | 'google_flow'>('auto');
   const [engineUsedName, setEngineUsedName] = useState('Kling AI & Google Flow Photorealism');
   const [isTestingKling, setIsTestingKling] = useState(false);
   const [klingTestResult, setKlingTestResult] = useState<any>(null);
